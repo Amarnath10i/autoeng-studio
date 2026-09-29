@@ -1,0 +1,41 @@
+# Local full stack: PostgreSQL + API + web app.  docker compose up --build
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: autoeng
+      POSTGRES_PASSWORD: autoeng
+      POSTGRES_DB: autoeng
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U autoeng"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    environment:
+      AUTOENG_DATABASE_URL: postgresql+psycopg://autoeng:autoeng@db:5432/autoeng
+      AUTOENG_PUBLIC_URL: http://localhost:8000
+      AUTOENG_CORS_ORIGINS: '["http://localhost:3000"]'
+      AUTOENG_COMPUTE: cpu
+      # AUTOENG_RESEARCH_API_KEY: set to enable the research assistant
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
