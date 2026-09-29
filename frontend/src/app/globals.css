@@ -1,0 +1,207 @@
+@import "tailwindcss";
+
+/*
+  Design tokens. Dark "carbon" is the default; light is available from the theme toggle.
+  The interface itself is monochrome (ink on carbon, platinum actions). Colour is reserved for
+  data series and engineering status, so it always means something.
+*/
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #060708;
+  --surface: #0d0e10;
+  --surface-2: #141518;
+  --surface-3: #1c1e22;
+  --ink: #f4f4f2;
+  --ink-2: #a6a8ad;
+  --ink-3: #6e7177;
+  --grid: #1c1e22;
+  --axis: #2b2e33;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.22);
+  --accent: #ecebe7; /* platinum */
+  --accent-ink: #060708;
+  --accent-soft: rgba(236, 235, 231, 0.08);
+  --hero-glow: rgba(160, 170, 190, 0.18);
+
+  /* Categorical series (dark steps of the validated palette), fixed order */
+  --s1: #3987e5;
+  --s2: #d95926;
+  --s3: #199e70;
+  --s4: #c98500;
+  --s5: #d55181;
+  --s6: #008300;
+  --s7: #9085e9;
+  --s8: #e66767;
+
+  /* Status: reserved, always paired with an icon and a label */
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --good-ink: #0ca30c;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --page: #f3f3f1;
+  --surface: #ffffff;
+  --surface-2: #f5f5f3;
+  --surface-3: #e9e9e6;
+  --ink: #0a0a0b;
+  --ink-2: #4f5054;
+  --ink-3: #85868a;
+  --grid: #e6e5e0;
+  --axis: #c9c8c2;
+  --border: rgba(10, 10, 11, 0.1);
+  --border-strong: rgba(10, 10, 11, 0.3);
+  --accent: #0a0a0b;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(10, 10, 11, 0.05);
+  --hero-glow: rgba(120, 130, 150, 0.16);
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --s4: #eda100;
+  --s5: #e87ba4;
+  --s6: #008300;
+  --s7: #4a3aa7;
+  --s8: #e34948;
+  --good-ink: #006300;
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-grid: var(--grid);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-good: var(--good);
+  --color-warning: var(--warning);
+  --color-serious: var(--serious);
+  --color-critical: var(--critical);
+  --font-sans: var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-barlow), var(--font-inter), system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+}
+
+html,
+body {
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--ink);
+  color: var(--page);
+}
+
+/* Spaced uppercase label, the signature of the interface */
+.eyebrow {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.display {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Hairline that fades out at both ends */
+.hairline {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-strong), transparent);
+}
+
+/* Recharts: keep chrome recessive */
+.recharts-cartesian-grid line {
+  stroke: var(--grid);
+}
+.recharts-text {
+  fill: var(--ink-3);
+  font-size: 11px;
+}
+
+input[type="number"]::-webkit-inner-spin-button {
+  opacity: 0.35;
+}
+
+select option {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 1px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* Hero line-art: draws itself once, then a slow light sweep */
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes sweep {
+  0% {
+    transform: translateX(-60%);
+  }
+  100% {
+    transform: translateX(160%);
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.draw-path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 2.6s cubic-bezier(0.65, 0, 0.35, 1) 0.2s forwards;
+}
+.light-sweep {
+  animation: sweep 7s ease-in-out 2.8s infinite;
+}
+.rise {
+  animation: rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .draw-path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .light-sweep,
+  .rise {
+    animation: none;
+  }
+}
