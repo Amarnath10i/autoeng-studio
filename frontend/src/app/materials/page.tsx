@@ -2,8 +2,9 @@
 
 import { Globe, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { Container, Figures, PageHero } from "@/components/layout";
 import { ResearchPanel } from "@/components/ResearchPanel";
-import { Button, Card, ErrorNote, Field, Input, SectionTitle, Select, SourceBadge, useAsync } from "@/components/ui";
+import { Button, Card, ErrorNote, Field, Input, Select, SourceBadge, useAsync } from "@/components/ui";
 import { api } from "@/lib/api";
 import { num, SOURCE_LABEL } from "@/lib/format";
 import { useSession } from "@/lib/session";
@@ -47,14 +48,24 @@ export default function MaterialsPage() {
       props: { ...draft.props, [k]: { ...(draft.props[k] ?? { value: "", tol: "0", source: "user" as Source, ref: "" }), ...patch } },
     });
 
+  const custom = materials.filter((m) => m.custom).length;
   return (
-    <div className="space-y-12">
-      <SectionTitle eyebrow="Library" title="Materials">
-        <p className="max-w-xl text-sm text-ink-2">
-          Materials are independent of parts: any component can use any material. Every property carries its source and
-          uncertainty; missing values are left empty rather than guessed.
-        </p>
-      </SectionTitle>
+    <div>
+      <PageHero
+        eyebrow="Library"
+        title="Materials"
+        description="Independent of any part: every component can use any material. Each property carries its source and uncertainty, and missing values stay empty rather than guessed."
+      >
+        <Figures
+          items={[
+            { label: "Materials", value: String(materials.length), sub: `${custom} of your own` },
+            { label: "Properties tracked", value: String(Object.keys(props).length), sub: "Mechanical, thermal, fatigue" },
+            { label: "Sources", value: "8", sub: "Measured to estimated, always labelled" },
+            { label: "Web research", value: "Cited", sub: "Reviewed before it enters the library" },
+          ]}
+        />
+      </PageHero>
+      <Container className="space-y-12 py-12">
       <ErrorNote error={act.error} onClose={() => act.setError(null)} />
 
       <div className="overflow-x-auto border border-line bg-surface">
@@ -171,6 +182,7 @@ export default function MaterialsPage() {
           </Button>
         </Card>
       </div>
+      </Container>
     </div>
   );
 }
