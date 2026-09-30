@@ -34,7 +34,7 @@ def car():
 
 def test_voxelised_body_matches_the_sketch():
     g = BodyGeometry(**default_geometry())
-    vox = aero_lbm3d.voxelize(g, 40)
+    vox = aero_lbm3d.voxelize(aero_lbm3d.body_from_geometry(g), 40)
     solid = vox["solid"]
     assert solid.any()
     height = (np.nonzero(solid.any(axis=(1, 2)))[0].max() + 1) * vox["dx"]
@@ -49,6 +49,11 @@ def test_run_is_stable_and_coefficients_are_sensible(car):
     assert car["max_speed_ratio"] < 3.0
     assert len(car["streamlines"]) > 0 and len(car["surface_pressure"]["cp"]) > 0
     assert car["history"] and all(np.isfinite(h["cd"]) for h in car["history"])
+
+
+def test_force_history_settles_without_oscillating(car):
+    tail = np.array([h["cd"] for h in car["history"][-10:]])
+    assert tail.std() < 0.05  # trapped fluid slivers would make Cd alternate between samples
 
 
 def test_result_is_strict_json(car):

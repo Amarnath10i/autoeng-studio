@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
 from autoeng import __version__
-from autoeng.api import routes_core, routes_projects
+from autoeng.api import routes_body, routes_core, routes_projects
 from autoeng.db.session import migrate
 from autoeng.services.jobs import ServerRunner
 from autoeng.settings import get_settings
@@ -49,6 +49,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(routes_core.router)
     app.include_router(routes_projects.router)
+    app.include_router(routes_body.router)
     return app
 
 

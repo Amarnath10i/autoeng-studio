@@ -15,10 +15,12 @@ flow separates, stagnates and forms a wake.
 from __future__ import annotations
 
 import time
+from dataclasses import dataclass
 
 import numpy as np
 
 from autoeng import compute
+from autoeng.platform import body_mesh
 
 MODEL_ID = "aero.lbm_d3q19_les"
 MODEL_VERSION = "1.0.0"
@@ -45,30 +47,56 @@ ASSUMPTIONS = [
     "3D lattice-Boltzmann (D3Q19) with Smagorinsky LES, incompressible regime (lattice Mach < 0.15).",
     "Lattice Reynolds number 10³-10⁴, far below a real car (10⁶-10⁷): boundary layers are too thick and separation "
     "can differ from reality. Use results to compare shapes and study flow structure, not as a certified Cd.",
-    "Body voxelised from the side-profile and front-section sketches (staircase surface); mirrors, underbody detail, "
-    "cooling flow and wheel rotation are not modelled.",
+    "Body voxelised from its closed surface: the detailed loft of the sketch (wheel wells, glasshouse tumblehome, "
+    "diffuser) or an imported mesh. Voxels give a staircase surface; mirrors, cooling flow and wheel rotation are "
+    "not modelled.",
     "Moving road at free-stream speed; inlet, top and sides held at free-stream equilibrium; zero-gradient outlet. "
     "Blockage from the finite tunnel is not corrected.",
     "Cd and Cl are referenced to the voxelised frontal area and averaged over the last 30 % of the run.",
 ]
 
 
-def _catmull_rom(points: np.ndarray, per_segment: int = 16) -> np.ndarray:
-    out = []
-    n = len(points)
-    for i in range(n - 1):
-        p0, p1, p2, p3 = points[max(i - 1, 0)], points[i], points[i + 1], points[min(i + 2, n - 1)]
-        for t in np.linspace(0, 1, per_segment, endpoint=False):
-            t2, t3 = t * t, t * t * t
-            out.append(0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (-p0 + 3 * p1 - 3 * p2 + p3) * t3))
-    out.append(points[-1])
-    return np.array(out)
+@dataclass
+class Body:
+    """What the tunnel tests: a closed triangle surface plus separately modelled wheels, in the car frame (m)."""
+
+    triangles: np.ndarray  # (T, 3, 3)
+    length_mm: float
+    width_mm: float
+    height_mm: float
+    wheels: list[dict]
+    source: str  # "loft" (from the sketch) or "mesh" (imported)
 
 
-def voxelize(g, cells_along: int) -> dict:
+def body_from_geometry(g, mesh: tuple[np.ndarray, dict] | None = None) -> Body:
+    """The detailed lofted body with its wheels, or an imported mesh (which carries its own wheels, if any)."""
+    if mesh is not None:
+        tris, info = mesh
+        return Body(np.asarray(tris, dtype=np.float64), info["length"] * 1000, info["width"] * 1000,
+                    info["height"] * 1000, [], "mesh")
+    return Body(body_mesh.loft_triangles(g), g.length_mm, g.width_mm, g.height_mm, body_mesh.wheel_positions(g), "loft")
+
+
+def fill_slivers(solid: np.ndarray, passes: int = 8) -> np.ndarray:
+    """Fill fluid cells that have solid on both sides along any axis (e.g. a tyre-to-wheel-well gap
+    thinner than a cell). Populations trapped in such slivers bounce between the two walls and inject
+    a spurious oscillating force; real gaps that small are not resolved by the grid anyway."""
+    s = solid.copy()
+    for _ in range(passes):
+        add = np.zeros_like(s)
+        for ax in range(3):
+            add |= np.roll(s, 1, axis=ax) & np.roll(s, -1, axis=ax)
+        add &= ~s
+        add[0] = False  # the road row stays fluid (it is the moving-road boundary)
+        if not add.any():
+            break
+        s |= add
+    return s
+
+
+def voxelize(body: Body, cells_along: int) -> dict:
     """Solid mask (nz, ny, nx) for the body and wheels inside a tunnel sized around the car."""
-    L, Wd, H = g.length_mm / 1000, g.width_mm / 1000, g.height_mm / 1000
-    gc = g.ground_clearance_mm / 1000
+    L, Wd, H = body.length_mm / 1000, body.width_mm / 1000, body.height_mm / 1000
     dx = L / cells_along
     nx = int(round(3.4 * cells_along))
     ny = int(round(Wd * 2.8 / dx)) // 2 * 2
@@ -77,26 +105,14 @@ def voxelize(g, cells_along: int) -> dict:
     xs = (np.arange(nx) + 0.5) * dx - x0
     ys = (np.arange(ny) + 0.5) * dx - ny * dx / 2
     zs = (np.arange(nz) + 0.5) * dx
-    Z, Y, X = np.meshgrid(zs, ys, xs, indexing="ij")
-
-    side = _catmull_rom(np.array(sorted(g.side_profile, key=lambda p: p[0]), dtype=float))
-    top = np.interp(np.clip(xs / L, 0, 1), side[:, 0], gc + side[:, 1] * (H - gc))
-    top[(xs < side[0, 0] * L) | (xs > side[-1, 0] * L)] = -1.0
-    section = _catmull_rom(np.array(g.front_section, dtype=float))
-    zbins = np.linspace(0, 1, 41)
-    halfw = np.array([section[np.abs(section[:, 1] - zb) < 0.05, 0].max(initial=0.0) for zb in zbins])
-    zn = np.clip((Z - gc) / (H - gc), 0, 1)
-    xn = np.clip(X / L, 0, 1)
-    taper = 1 - 0.16 * np.abs(2 * xn - 1) ** 4
-    width_here = (Wd / 2) * np.interp(zn, zbins, halfw) * taper
-    solid = (X >= 0) & (X <= L) & (gc <= Z) & (top[None, None, :] >= Z) & (np.abs(Y) <= width_here)
-
-    r = g.wheel_diameter_mm / 2000
-    wheel_w = 0.24
-    for ax in (g.front_overhang_mm / 1000, (g.front_overhang_mm + g.wheelbase_mm) / 1000):
-        for side_y in (-1, 1):
-            yc = side_y * (Wd / 2 - wheel_w / 2)
-            solid |= ((X - ax) ** 2 + (Z - r) ** 2 <= r**2) & (np.abs(Y - yc) <= wheel_w / 2)
+    solid = body_mesh.voxelize_triangles(body.triangles, xs, ys, zs)
+    if body.wheels:
+        Z, Y, X = np.meshgrid(zs, ys, xs, indexing="ij")
+        for wh in body.wheels:
+            for side_y in (-1, 1):
+                solid |= (((X - wh["x"]) ** 2 + (Z - wh["r"]) ** 2 <= wh["r"] ** 2)
+                          & (np.abs(Y - side_y * wh["y"]) <= wh["width"] / 2))
+    solid = fill_slivers(solid)
     return {"solid": solid, "dx": dx, "nx": nx, "ny": ny, "nz": nz, "x0": x0, "xs": xs, "ys": ys, "zs": zs}
 
 
@@ -163,11 +179,14 @@ def _cuda_kernel():
     return _KERNEL
 
 
-def run(g, resolution: str = "standard", progress=None) -> dict:
+def run(g, resolution: str = "standard", progress=None, mesh: tuple[np.ndarray, dict] | None = None) -> dict:
+    """Run the tunnel on a body sketch `g`, or on an imported mesh (triangles, info) when given."""
     if resolution not in RESOLUTIONS:
         raise ValueError(f"resolution must be one of {', '.join(RESOLUTIONS)}")
     cfg = RESOLUTIONS[resolution]
-    vox = voxelize(g, cfg["cells"])
+    body = body_from_geometry(g, mesh)
+    g = body  # carries the dimensions used below
+    vox = voxelize(body, cfg["cells"])
     nx, ny, nz = vox["nx"], vox["ny"], vox["nz"]
     n_cells = nx * ny * nz
     xp = compute.for_size(n_cells * 19)
@@ -350,6 +369,8 @@ def _package(g, vox, u, rho, solid, U, cd, cl, history, frontal, cfg, resolution
         "model": {"id": MODEL_ID, "version": MODEL_VERSION, "fidelity_level": FIDELITY_LEVEL,
                   "name": "3D lattice-Boltzmann wind tunnel"},
         "assumptions": ASSUMPTIONS,
+        "body": {"source": g.source, "triangles": int(len(g.triangles)), "length_m": g.length_mm / 1000,
+                 "width_m": g.width_mm / 1000, "height_m": g.height_mm / 1000},
     }
 
 

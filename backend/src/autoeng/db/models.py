@@ -11,7 +11,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -187,4 +187,16 @@ class CalibrationRecord(Base):
     descriptors: Mapped[dict[str, Any]]
     parameters: Mapped[dict[str, Any]]  # path -> {"value", "ci95"}
     quality: Mapped[dict[str, Any]]  # rmse, points, measurement kind
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class BodyMesh(Base):
+    """An imported body surface (STL/OBJ), normalised to the car frame and stored as float32 triangles."""
+
+    __tablename__ = "body_meshes"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    info: Mapped[dict[str, Any]]  # length, width, height (m), triangles, import settings
+    triangles: Mapped[bytes] = mapped_column(LargeBinary)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

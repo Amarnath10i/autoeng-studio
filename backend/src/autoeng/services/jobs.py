@@ -114,9 +114,17 @@ def body_geometry(payload: dict):
 
 
 def wind_tunnel(payload: dict) -> dict:
+    import base64
+
+    import numpy as np
+
     from autoeng.physics import aero_lbm3d
 
-    return aero_lbm3d.run(body_geometry(payload), payload.get("resolution", "standard"))
+    mesh = None
+    if payload.get("mesh"):
+        tris = np.frombuffer(base64.b64decode(payload["mesh"]["triangles_b64"]), dtype=np.float32).reshape(-1, 3, 3)
+        mesh = (tris, payload["mesh"]["info"])
+    return aero_lbm3d.run(body_geometry(payload), payload.get("resolution", "standard"), mesh=mesh)
 
 
 # --- queue ---------------------------------------------------------------------

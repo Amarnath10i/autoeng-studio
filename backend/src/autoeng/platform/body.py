@@ -59,6 +59,13 @@ class BodyGeometry(BaseModel):
     side_profile: list[list[float]]  # front bumper → roof → rear bumper, x 0→1
     front_section: list[list[float]]  # underbody centreline → side → roof centreline, x = half-width share
     applied_panel_mass_kg: float | None = None  # panel mass at the time the vehicle mass was last updated
+    # Surface detail for the lofted 3D body (see body_mesh.py).
+    beltline: float = Field(default=0.6, ge=0.3, le=0.85)  # share of body height where the glasshouse starts
+    tumblehome: float = Field(default=0.14, ge=0.0, le=0.4)  # inward lean of the glasshouse at the roof
+    plan_taper_front: float = Field(default=0.14, ge=0.0, le=0.4)  # rounding of the front bumper corners (plan view)
+    plan_taper_rear: float = Field(default=0.08, ge=0.0, le=0.4)
+    arch_clearance_mm: float = Field(default=40.0, ge=10, le=150)  # wheel-well gap around the tyre
+    mesh_id: str | None = None  # imported surface mesh that replaces the loft in the wind tunnel
 
     @field_validator("side_profile")
     @classmethod
