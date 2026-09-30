@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, CarFront, CloudSun, Compass, FlaskConical, GitBranch, Network, Play, Timer } from "lucide-react";
+import { Activity, CarFront, CloudSun, Compass, FlaskConical, GitBranch, Network, Play, Timer, Wind } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { HistoryPanel, TrustPanel } from "@/components/project/Panels";
 import { Container, type FigureItem, StickyTabs } from "@/components/layout";
@@ -15,8 +15,9 @@ import { BodyDesigner } from "./BodyDesigner";
 import { PerformanceTab, type VehicleResult } from "./PerformanceTab";
 import { ScenarioTab } from "./ScenarioTab";
 import { MaterialStudy, WeatherStudy } from "./StudiesTab";
+import { WindTunnel } from "./WindTunnel";
 
-type Tab = "architecture" | "body" | "performance" | "scenarios" | "weather" | "materials" | "history" | "trust";
+type Tab = "architecture" | "body" | "aero" | "performance" | "scenarios" | "weather" | "materials" | "history" | "trust";
 
 const WORST = ["no_data", "ok", "warning", "critical", "failure"];
 
@@ -113,6 +114,7 @@ export function VehicleWorkspace({ state }: { state: ProjectState }) {
           tabs={[
             { id: "architecture", label: "Architecture", icon: Network },
             { id: "body", label: "Body design", icon: CarFront },
+            { id: "aero", label: "Wind tunnel (GPU)", icon: Wind },
             { id: "performance", label: "Performance", icon: Activity },
             { id: "scenarios", label: "Scenarios", icon: Timer },
             { id: "weather", label: "Weather study (GPU)", icon: CloudSun },
@@ -147,6 +149,7 @@ export function VehicleWorkspace({ state }: { state: ProjectState }) {
         </div>
       )}
       {tab === "body" && <BodyDesigner design={design} onChange={(d) => state.edit(d)} />}
+      {tab === "aero" && <WindTunnel design={design} onChange={(d) => state.edit(d)} target={target} setTarget={setTarget} />}
       {tab === "performance" &&
         (result ? <PerformanceTab result={result} design={design} /> : sim.busy ? <Spinner label="Simulating…" /> : <Empty title="Press Simulate" />)}
       {tab === "scenarios" && <ScenarioTab design={design} target={target} setTarget={setTarget} />}

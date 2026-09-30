@@ -128,6 +128,10 @@ export interface Meta {
   limits: { max_samples: number; default_samples: number };
   sweepable: string[];
   scenarios: Scenario[];
+  wind_tunnel?: {
+    resolutions: { id: string; cells: number; u: number; re: number; flow_throughs: number }[];
+    assumptions: string[];
+  };
 }
 
 export interface Material {

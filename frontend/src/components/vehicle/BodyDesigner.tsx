@@ -246,7 +246,7 @@ function useBodyMesh(g: BodyGeometry) {
   }, [g]);
 }
 
-function Orbit() {
+export function Orbit() {
   const { camera, gl } = useThree();
   useEffect(() => {
     const c = new OrbitControls(camera, gl.domElement);
@@ -258,7 +258,7 @@ function Orbit() {
   return null;
 }
 
-function BodyPreview({ g, groupRef }: { g: BodyGeometry; groupRef: React.RefObject<THREE.Group | null> }) {
+export function BodyPreview({ g, groupRef, ghost = false }: { g: BodyGeometry; groupRef?: React.RefObject<THREE.Group | null>; ghost?: boolean }) {
   const { geom } = useBodyMesh(g);
   const r = g.wheel_diameter_mm / 2000;
   const L = g.length_mm / 1000;
@@ -268,7 +268,16 @@ function BodyPreview({ g, groupRef }: { g: BodyGeometry; groupRef: React.RefObje
   return (
     <group ref={groupRef}>
       <mesh geometry={geom}>
-        <meshPhysicalMaterial color="#2a2d33" metalness={0.7} roughness={0.28} clearcoat={1} clearcoatRoughness={0.08} />
+        <meshPhysicalMaterial
+          color="#2a2d33"
+          metalness={0.7}
+          roughness={0.28}
+          clearcoat={1}
+          clearcoatRoughness={0.08}
+          transparent={ghost}
+          opacity={ghost ? 0.28 : 1}
+          depthWrite={!ghost}
+        />
       </mesh>
       {[frontAxle, rearAxle].flatMap((x) =>
         [-1, 1].map((side) => (

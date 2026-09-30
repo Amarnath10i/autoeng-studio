@@ -1,5 +1,7 @@
 """3D wind tunnel: stability, sensible coefficients and shape ranking on a coarse grid."""
 
+import json
+
 import numpy as np
 import pytest
 
@@ -47,6 +49,10 @@ def test_run_is_stable_and_coefficients_are_sensible(car):
     assert car["max_speed_ratio"] < 3.0
     assert len(car["streamlines"]) > 0 and len(car["surface_pressure"]["cp"]) > 0
     assert car["history"] and all(np.isfinite(h["cd"]) for h in car["history"])
+
+
+def test_result_is_strict_json(car):
+    json.dumps(car, allow_nan=False)  # raises on NaN or Infinity
 
 
 def test_front_stagnation_pressure_is_positive(car):

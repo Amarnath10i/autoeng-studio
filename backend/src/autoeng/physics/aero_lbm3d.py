@@ -306,7 +306,9 @@ def _package(g, vox, u, rho, solid, U, cd, cl, history, frontal, cfg, resolution
     cp = (rho - 1.0) / 3.0 / (0.5 * U * U)
 
     def slice_(arr2d, stride):
-        return np.round(arr2d[::stride, ::stride], 3).tolist()
+        # Cells inside the body become null so the result stays valid JSON.
+        a = np.round(arr2d[::stride, ::stride], 3)
+        return [[None if not np.isfinite(v) else float(v) for v in row] for row in a]
 
     stride = max(1, nx // 220)
     jmid = ny // 2
