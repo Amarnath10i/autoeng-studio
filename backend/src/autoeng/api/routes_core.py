@@ -15,8 +15,8 @@ from autoeng.analysis.advisor import advise
 from autoeng.analysis.calibration import CALIBRATABLE, DynoRun, calibrate
 from autoeng.analysis.limits import STATUS_RULES
 from autoeng.analysis.propagation import graph_dict
-from autoeng.analysis.sampling import SWEEPABLE
-from autoeng.analysis.simulate import DEFAULT_SAMPLES, MAX_SAMPLES, simulate
+from autoeng.analysis.sampling import SWEEPABLE, resolve_material
+from autoeng.analysis.simulate import DEFAULT_SAMPLES, MAX_SAMPLES, balance_for, simulate
 from autoeng.analysis.whatif import compare
 from autoeng.api.deps import CurrentUser, Db, user_materials
 from autoeng.core.params import INPUT_SOURCES
@@ -218,6 +218,18 @@ def _value_error(fn):
 def engine_simulate(body: SimulateIn, db: Db, user: CurrentUser) -> dict:
     mats = user_materials(db, user)
     return _value_error(lambda: simulate(body.design, mats, body.samples, body.seed))
+
+
+@router.post("/api/v1/engine/layout")
+def engine_layout(body: dict, db: Db, user: CurrentUser) -> dict:
+    """Cylinder arrangement, balance and firing intervals: fast, for live 3D and layout editing."""
+    mats = user_materials(db, user)
+
+    def run() -> dict:
+        design = EngineDesign.model_validate(body.get("design", body))
+        return balance_for(design, resolve_material(design, mats))
+
+    return _value_error(run)
 
 
 @router.post("/api/v1/engine/compare")

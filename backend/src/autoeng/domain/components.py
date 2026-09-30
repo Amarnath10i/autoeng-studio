@@ -34,6 +34,7 @@ CHANNELS: dict[str, Channel] = {
         Channel("corrected_air_flow", "Corrected air flow", "kg/s",
                 "Compressor flow corrected to 298.15 K / 101.325 kPa. Check your map's reference conditions.", 3),
         Channel("compressor_power", "Compressor power", "kW", "Shaft power absorbed by the compressor.", 1),
+        Channel("drive_power", "Supercharger drive power", "kW", "Crank power taken to drive a supercharger (zero for turbo or NA).", 1),
         Channel("turbine_power", "Turbine power", "kW", "Shaft power delivered by the turbine.", 1),
         Channel("exhaust_manifold_pressure", "Exhaust manifold pressure", "kPa", "Absolute turbine inlet pressure.", 1),
         Channel("egt", "Turbine inlet temp.", "°C", "Exhaust gas temperature at the turbine inlet.", 0),
@@ -77,8 +78,8 @@ COMPONENTS: dict[str, Component] = {
     for c in [
         Component("air_intake", "Air intake", "Induction", ("corrected_air_flow",), ("filter restriction",),
                   "Draws outside air into the turbo.", params=("ambient.",)),
-        Component("compressor", "Turbo compressor", "Turbocharger",
-                  ("pressure_ratio", "compressor_outlet_temp", "corrected_air_flow", "compressor_power"),
+        Component("compressor", "Compressor (turbo / supercharger)", "Induction",
+                  ("pressure_ratio", "compressor_outlet_temp", "corrected_air_flow", "compressor_power", "drive_power"),
                   ("surge", "choke", "overspeed", "bearing failure"),
                   "Spins to squeeze more air into the engine.", params=("turbo.boost_target", "turbo.compressor_efficiency")),
         Component("intercooler", "Intercooler", "Induction", ("charge_temp",), ("core leak", "heat soak"),

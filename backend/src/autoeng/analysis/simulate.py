@@ -14,7 +14,7 @@ from autoeng.core.params import Source
 from autoeng.domain.components import CHANNELS, COMPONENTS
 from autoeng.domain.engine_design import PARAM_SPECS, EngineDesign
 from autoeng.domain.materials import Material
-from autoeng.physics import conrod, engine_mvem
+from autoeng.physics import balance, conrod, engine_mvem
 
 MAX_SAMPLES = 2000
 DEFAULT_SAMPLES = 200
@@ -193,6 +193,8 @@ def simulate(
 
     result = {
         "design_name": design.name,
+        "architecture": design.architecture.model_dump(mode="json"),
+        "balance": balance_for(design, material),
         "rpm": _clean(rpm, 1),
         "channels": channels,
         "summary": summary,
@@ -207,6 +209,19 @@ def simulate(
         "compute": ens.device,
     }
     return (result, nom, ens) if return_raw else result
+
+
+def balance_for(design: EngineDesign, material: Material) -> dict:
+    """Layout balance and firing analysis at redline, using the nominal reciprocating mass."""
+    rod = design.conrod
+    density = material.prop("density").value
+    recip = rod.piston_group_mass.value / 1000 + rod.small_end_fraction.value * density * rod.volume.value * 1e-6
+    arch = design.architecture
+    return balance.analyse(
+        arch.layout, design.engine.cylinders, arch.bank_angle.value, arch.crank,
+        design.engine.bore.value / 1000, design.engine.stroke.value / 1000, design.engine.rod_length.value / 1000,
+        recip, float(design.operating.rpm_max),
+    )
 
 
 def _evaluate_limits(design: EngineDesign, nom: RawRun, ens: RawRun, seed: int) -> list[lim.LimitResult]:
@@ -358,8 +373,10 @@ def trust_block(sampled: Sampled, samples: int, seed: int) -> dict:
              "name": "Turbocharged SI engine, mean-value model"},
             {"id": conrod.MODEL_ID, "version": conrod.MODEL_VERSION, "fidelity_level": conrod.FIDELITY_LEVEL,
              "name": "Connecting-rod beam checks"},
+            {"id": balance.MODEL_ID, "version": balance.MODEL_VERSION, "fidelity_level": 1,
+             "name": "Layout balance and firing analysis"},
         ],
-        "assumptions": engine_mvem.ASSUMPTIONS + conrod.ASSUMPTIONS,
+        "assumptions": engine_mvem.ASSUMPTIONS + conrod.ASSUMPTIONS + balance.ASSUMPTIONS,
         "not_modelled": engine_mvem.NOT_MODELLED,
         "inputs_by_source": by_source,
         "unknown_inputs": by_source.get(Source.UNKNOWN.value, []),

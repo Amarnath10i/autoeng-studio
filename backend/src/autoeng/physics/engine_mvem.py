@@ -1,7 +1,10 @@
-"""Mean-value model of a turbocharged four-stroke spark-ignition engine (fidelity level 1-2).
+"""Mean-value model of a four-stroke spark-ignition engine (fidelity level 1-2).
 
-For each rpm point the model finds the boost the turbocharger can actually sustain
-by balancing turbine and compressor shaft power, then computes air and fuel flow,
+Induction can be a turbocharger, a positive-displacement or centrifugal
+supercharger, or none (naturally aspirated). For a turbo, each rpm point finds the
+boost the turbine can actually sustain by balancing turbine and compressor shaft
+power; a supercharger's boost follows its drive and its drive power is taken off
+the crank. The model then computes air and fuel flow,
 indicated work, pumping and friction losses, brake output, peak cylinder pressure
 and the heat split between work, coolant and exhaust.
 
@@ -39,6 +42,10 @@ ASSUMPTIONS = [
     "Turbine inlet temperature comes from an energy balance: fuel heat − gross indicated work − coolant heat = exhaust sensible heat. "
     "Exhaust manifold heat loss is ignored.",
     "Ambient air enters the compressor with no filter pressure loss; the intercooler sinks to ambient temperature.",
+    "Superchargers: positive-displacement units hold the boost target across the range; centrifugal units build boost with "
+    "(rpm / redline)². Drive power = compressor power ÷ drive efficiency, taken from the crank. No turbine: exhaust manifold "
+    "pressure equals the post-turbine back-pressure setting.",
+    "Naturally aspirated: manifold at ambient pressure and temperature at full load (no throttle or filter losses).",
 ]
 
 NOT_MODELLED = [
@@ -90,6 +97,8 @@ class EngineInputs:
     injector_count: int
     ambient_temp: np.ndarray  # K
     ambient_pressure: np.ndarray  # Pa
+    induction: str = "turbo"  # turbo | naturally_aspirated | supercharger_pd | supercharger_centrifugal
+    drive_efficiency: np.ndarray | float = 0.9  # supercharger belt/gear drive
 
     @property
     def displacement(self) -> np.ndarray:
@@ -106,14 +115,20 @@ def volumetric_efficiency(inp: EngineInputs, rpm: np.ndarray) -> np.ndarray:
 class _Charge:
     """Intake-side state and combustion energy split for a given boost level."""
 
-    def __init__(self, inp: EngineInputs, rpm: np.ndarray, ve: np.ndarray, boost: np.ndarray):
+    def __init__(self, inp: EngineInputs, rpm: np.ndarray, ve: np.ndarray, boost: np.ndarray, compressor: bool = True):
         xp = ns(boost)
         self.boost = boost
         self.p_manifold = inp.ambient_pressure + boost
-        self.p_compressor_out = self.p_manifold + inp.ic_pressure_drop
-        self.pressure_ratio = self.p_compressor_out / inp.ambient_pressure
-        self.t_compressor_out = gas.compressor_outlet_temp(inp.ambient_temp, self.pressure_ratio, inp.eta_compressor)
-        self.t_manifold = self.t_compressor_out - inp.ic_effectiveness * (self.t_compressor_out - inp.ambient_temp)
+        if compressor:
+            self.p_compressor_out = self.p_manifold + inp.ic_pressure_drop
+            self.pressure_ratio = self.p_compressor_out / inp.ambient_pressure
+            self.t_compressor_out = gas.compressor_outlet_temp(inp.ambient_temp, self.pressure_ratio, inp.eta_compressor)
+            self.t_manifold = self.t_compressor_out - inp.ic_effectiveness * (self.t_compressor_out - inp.ambient_temp)
+        else:  # naturally aspirated: ambient air straight to the manifold
+            self.p_compressor_out = self.p_manifold
+            self.pressure_ratio = xp.ones_like(self.p_manifold)
+            self.t_compressor_out = xp.broadcast_to(inp.ambient_temp, self.p_manifold.shape) + 0.0
+            self.t_manifold = self.t_compressor_out
         rho = self.p_manifold / (gas.R_AIR * self.t_manifold)
         self.air_flow = ve * rho * inp.displacement * rpm / 120.0
         self.fuel_flow = self.air_flow / (inp.lambda_ratio * inp.afr_stoich)
@@ -135,14 +150,9 @@ def _turbine_closed(inp: EngineInputs, c: _Charge, p_out: np.ndarray):
     return p_in, power
 
 
-def run(inp: EngineInputs, rpm: np.ndarray, iterations: int = 30) -> dict[str, np.ndarray]:
-    """Evaluate the full-load curve. Returns SI arrays shaped (S, R)."""
+def _turbo_match(inp: EngineInputs, rpm, ve, target, p_out, shape, iterations: int):
+    """Boost the turbine can sustain, then the wastegated turbine inlet pressure."""
     xp = ns(inp.bore)
-    rpm = xp.asarray(rpm, dtype=float)[None, :]
-    shape = np.broadcast_shapes(inp.bore.shape, rpm.shape)
-    ve = xp.broadcast_to(volumetric_efficiency(inp, rpm), shape)
-    p_out = inp.ambient_pressure + inp.exhaust_backpressure
-    target = xp.broadcast_to(inp.boost_target, shape)
 
     def surplus(boost):
         c = _Charge(inp, rpm, ve, boost)
@@ -177,6 +187,39 @@ def run(inp: EngineInputs, rpm: np.ndarray, iterations: int = 30) -> dict[str, n
     p3 = xp.where(reachable, 0.5 * (lo_p + hi_p), p3_closed)
     turbine_flow = xp.minimum(c.exhaust_flow, gas.nozzle_mass_flow(inp.turbine_area, p3, c.t_exhaust, p_out, inp.exhaust_gamma))
     turbine_power = gas.turbine_power(turbine_flow, inp.exhaust_cp, c.t_exhaust, inp.eta_turbine, p3 / p_out, inp.exhaust_gamma)
+    return boost, c, p3, turbine_power, turbine_flow, reachable
+
+
+def run(inp: EngineInputs, rpm: np.ndarray, iterations: int = 30) -> dict[str, np.ndarray]:
+    """Evaluate the full-load curve. Returns SI arrays shaped (S, R)."""
+    xp = ns(inp.bore)
+    rpm = xp.asarray(rpm, dtype=float)[None, :]
+    shape = np.broadcast_shapes(inp.bore.shape, rpm.shape)
+    ve = xp.broadcast_to(volumetric_efficiency(inp, rpm), shape)
+    p_out = inp.ambient_pressure + inp.exhaust_backpressure
+    target = xp.broadcast_to(inp.boost_target, shape)
+    zeros = xp.zeros(shape)
+    drive_power = zeros
+
+    if inp.induction == "turbo":
+        boost, c, p3, turbine_power, turbine_flow, reachable = _turbo_match(inp, rpm, ve, target, p_out, shape, iterations)
+    else:
+        if inp.induction == "naturally_aspirated":
+            boost = zeros
+        elif inp.induction == "supercharger_centrifugal":
+            # Impeller pressure rise scales with tip speed², i.e. with engine speed² through a fixed drive ratio.
+            boost = target * xp.clip((rpm / inp.rpm_max) ** 2, 0.0, 1.0)
+        elif inp.induction == "supercharger_pd":
+            boost = target + zeros  # positive displacement: near-constant boost across the range
+        else:
+            raise ValueError(f"Unknown induction '{inp.induction}'")
+        c = _Charge(inp, rpm, ve, boost, compressor=inp.induction != "naturally_aspirated")
+        if inp.induction != "naturally_aspirated":
+            drive_power = c.compressor_power / inp.drive_efficiency
+        p3 = xp.broadcast_to(p_out, shape) + 0.0
+        turbine_power = zeros
+        turbine_flow = zeros
+        reachable = xp.ones(shape, dtype=bool)
 
     cycles_per_s = rpm / 120.0
     vd = inp.displacement
@@ -184,9 +227,10 @@ def run(inp: EngineInputs, rpm: np.ndarray, iterations: int = 30) -> dict[str, n
     pmep = c.p_manifold - p3
     krpm = rpm / 1000.0
     fmep = inp.friction_a + inp.friction_b * krpm + inp.friction_c * krpm**2
-    bmep = imep + pmep - fmep
-    torque = bmep * vd / (4.0 * xp.pi)
     omega = 2.0 * xp.pi * rpm / 60.0
+    # A crank-driven supercharger's drive power comes straight off the brake output.
+    bmep = imep + pmep - fmep - drive_power / (vd * cycles_per_s)
+    torque = bmep * vd / (4.0 * xp.pi)
     power = torque * omega
     fuel_power = c.fuel_flow * inp.fuel_lhv
     bsfc = xp.where(power > 0, c.fuel_flow / xp.where(power > 0, power, 1.0) * 3.6e9, xp.nan)  # g/kWh
@@ -205,11 +249,12 @@ def run(inp: EngineInputs, rpm: np.ndarray, iterations: int = 30) -> dict[str, n
         "charge_temp": c.t_manifold,
         "air_flow": c.air_flow,
         "corrected_air_flow": corrected_flow,
-        "compressor_power": c.compressor_power,
+        "compressor_power": c.compressor_power + zeros,
+        "drive_power": drive_power + zeros,
         "turbine_power": turbine_power,
         "exhaust_manifold_pressure": p3,
         "egt": c.t_exhaust,
-        "wastegate_fraction": 1.0 - turbine_flow / c.exhaust_flow,
+        "wastegate_fraction": (1.0 - turbine_flow / c.exhaust_flow) if inp.induction == "turbo" else zeros,
         "fuel_flow": c.fuel_flow,
         "injector_duty": c.fuel_flow / injector_capacity,
         "imep": imep,
@@ -239,6 +284,7 @@ DISPLAY = {
     "air_flow": lambda v: v * 1e3,
     "fuel_flow": lambda v: v * 1e3,
     "compressor_power": lambda v: v / 1e3,
+    "drive_power": lambda v: v / 1e3,
     "turbine_power": lambda v: v / 1e3,
     "power": lambda v: v / 1e3,
     "heat_released": lambda v: v / 1e3,

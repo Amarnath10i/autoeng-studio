@@ -115,7 +115,74 @@ def stage2_variant() -> EngineDesign:
     return EngineDesign.model_validate(d)
 
 
+def _derive(name: str, description: str, *, layout: str, cylinders: int, bore: float, stroke: float, rod: float,
+            cr: float, induction: str, boost: float, rpm_max: int, ve_peak_rpm: float, bank_angle: float = 90.0,
+            crank: str = "standard", turbine_area: float = 4.2, compressor_eff: float = 0.72,
+            injector_flow: float = 450, limits: dict[str, float] | None = None, lam: float = 0.85,
+            ve_peak: float = 0.95, low_friction: bool = False) -> EngineDesign:
+    """A generic engine of another layout, derived from the base design (all values illustrative estimates)."""
+    d = generic_2l_turbo().model_dump()
+    d["name"], d["description"] = name, description
+    d["architecture"].update(layout=layout, crank=crank, induction=induction)
+    d["architecture"]["bank_angle"]["value"] = bank_angle
+    d["engine"].update(cylinders=cylinders)
+    d["engine"]["bore"]["value"], d["engine"]["stroke"]["value"] = bore, stroke
+    d["engine"]["rod_length"]["value"], d["engine"]["compression_ratio"]["value"] = rod, cr
+    d["operating"]["rpm_max"] = rpm_max
+    d["breathing"]["ve_peak_rpm"]["value"] = ve_peak_rpm
+    d["turbo"]["boost_target"]["value"] = boost
+    d["turbo"]["turbine_flow_area"]["value"] = turbine_area
+    d["turbo"]["compressor_efficiency"]["value"] = compressor_eff
+    d["combustion"]["lambda_ratio"]["value"] = lam
+    d["fuel"]["injector_count"] = cylinders
+    d["fuel"]["injector_flow"]["value"] = injector_flow
+    d["conrod"]["piston_group_mass"]["value"] = round(420 * (bore / 86) ** 2)
+    d["breathing"]["ve_peak"]["value"] = ve_peak
+    if low_friction:
+        # The Barnes-Moss coefficients come from 1970s engines; a modern high-revving engine loses far less.
+        for key, value in (("a", 0.9), ("b", 0.12), ("c", 0.025)):
+            d["friction"][key] = P(value, EST, value * 0.15, "Estimated for a modern low-friction engine")
+    for lim in d["limits"]:
+        if limits and lim["id"] in limits:
+            lim["allowable"]["value"] = limits[lim["id"]]
+    return EngineDesign.model_validate(d)
+
+
+def v8_na() -> EngineDesign:
+    return _derive("Generic 5.0 L V8 naturally aspirated", "Cross-plane 90° V8, high compression, no boost device.",
+                   layout="v", cylinders=8, bore=92.0, stroke=93.0, rod=150.0, cr=11.5, induction="naturally_aspirated",
+                   boost=0.0, rpm_max=7500, ve_peak_rpm=5500, crank="cross_plane", injector_flow=400, lam=0.88,
+                   ve_peak=1.02, low_friction=True,
+                   limits={"clutch": 650, "gearbox": 700, "cooling": 320, "pcp": 120, "piston_speed": 24})
+
+
+def v8_supercharged() -> EngineDesign:
+    return _derive("Generic 4.0 L V8 supercharged", "Cross-plane V8 with a positive-displacement (screw) supercharger.",
+                   layout="v", cylinders=8, bore=89.0, stroke=80.0, rod=150.0, cr=9.5, induction="supercharger_pd",
+                   boost=0.7, rpm_max=7000, ve_peak_rpm=5000, crank="cross_plane", compressor_eff=0.65, injector_flow=550,
+                   low_friction=True,
+                   limits={"clutch": 800, "gearbox": 850, "cooling": 380, "pcp": 150, "piston_speed": 22})
+
+
+def flat4_turbo() -> EngineDesign:
+    return _derive("Generic 2.5 L flat-4 turbo", "Horizontally opposed four with a single turbocharger.",
+                   layout="flat", cylinders=4, bore=99.5, stroke=79.0, rod=130.5, cr=8.2, induction="turbo",
+                   boost=1.1, rpm_max=6700, ve_peak_rpm=4500, bank_angle=180, turbine_area=4.8, injector_flow=560,
+                   limits={"clutch": 480, "gearbox": 500, "cooling": 260})
+
+
+def v6_turbo() -> EngineDesign:
+    return _derive("Generic 3.0 L V6 turbo", "90° V6 with split crankpins for even firing; turbocharged.",
+                   layout="v", cylinders=6, bore=86.0, stroke=86.0, rod=145.0, cr=9.8, induction="turbo",
+                   boost=1.0, rpm_max=7000, ve_peak_rpm=4800, bank_angle=90, turbine_area=6.2, injector_flow=480,
+                   limits={"clutch": 600, "gearbox": 620, "cooling": 300})
+
+
 PRESETS = {
     "generic_2l_turbo": ("Generic 2.0 L turbo I4", generic_2l_turbo),
     "generic_2l_turbo_stage2": ("Generic 2.0 L turbo I4, 1.5 bar", stage2_variant),
+    "generic_v6_turbo": ("Generic 3.0 L V6 turbo", v6_turbo),
+    "generic_flat4_turbo": ("Generic 2.5 L flat-4 turbo", flat4_turbo),
+    "generic_v8_na": ("Generic 5.0 L V8 naturally aspirated", v8_na),
+    "generic_v8_supercharged": ("Generic 4.0 L V8 supercharged", v8_supercharged),
 }

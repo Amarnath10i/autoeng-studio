@@ -170,6 +170,8 @@ def sample_design(
         rpm_min=float(design.operating.rpm_min),
         rpm_max=float(design.operating.rpm_max),
         injector_count=design.fuel.injector_count,
+        induction=design.architecture.induction,
+        drive_efficiency=x["architecture.supercharger_drive_efficiency"],
         **{field: x[path] for path, field in ENGINE_FIELDS.items()},
     )
     rod: dict[str, np.ndarray | None] = {field: x[path] for path, field in ROD_FIELDS.items()}
