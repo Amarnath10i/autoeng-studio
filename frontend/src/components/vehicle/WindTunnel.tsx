@@ -9,11 +9,12 @@ import { Studio } from "@/components/engine/Engine3D";
 import { Figures } from "@/components/layout";
 import { ComputePicker } from "@/components/project/ProjectBar";
 import { Button, Card, ErrorNote, Note, Segmented, Spinner, useAsync } from "@/components/ui";
-import { api, runJob } from "@/lib/api";
+import { api, waitForJob } from "@/lib/api";
 import { fmt } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import type { Json, Param, VehicleDesign } from "@/lib/types";
-import { type BodyGeometry, BodyPreview, Orbit } from "./BodyDesigner";
+import { type BodyGeometry, Orbit } from "./BodyDesigner";
+import { BodySurface, type Surface, useBodySurface } from "./BodyMesh3D";
 
 type Resolution = "draft" | "standard" | "fine";
 
@@ -45,6 +46,7 @@ export interface TunnelResult {
   seconds: number;
   compute: { backend: string; device: string; kernel?: string };
   assumptions: string[];
+  body?: { source: "loft" | "mesh"; triangles: number; length_m: number; width_m: number; height_m: number };
 }
 
 interface RunRecord {
@@ -194,13 +196,13 @@ function SurfacePressure({ s, L }: { s: TunnelResult["surface_pressure"]; L: num
 
 type Layer = "streamlines" | "pressure" | "both";
 
-function TunnelScene({ g, res, layer }: { g: BodyGeometry; res: TunnelResult; layer: Layer }) {
-  const L = g.length_mm / 1000;
+function TunnelScene({ surface, res, layer }: { surface: Surface; res: TunnelResult; layer: Layer }) {
+  const L = res.body?.length_m ?? surface.length;
   return (
     <Canvas camera={{ position: [4.2, 2.2, 5.4], fov: 34 }} dpr={[1, 2]} gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}>
       <Studio />
       <directionalLight position={[5, 8, 3]} intensity={1.2} />
-      <BodyPreview g={g} ghost={layer === "both"} />
+      <BodySurface surface={surface} ghost={layer === "both"} />
       {layer !== "pressure" && (
         <>
           <Streamlines lines={res.streamlines} L={L} maxSpeed={Math.max(1.2, res.max_speed_ratio)} />
@@ -337,6 +339,7 @@ export function WindTunnel({
   const [status, setStatus] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const act = useAsync();
+  const { surface } = useBodySurface(g);
 
   useEffect(() => {
     if (!stored) api<BodyGeometry>("/api/v1/body/default").then(setFallback).catch(() => undefined);
@@ -352,7 +355,8 @@ export function WindTunnel({
   const run = () =>
     act.run(async () => {
       setElapsed(0);
-      const r = await runJob<TunnelResult>("wind_tunnel", { geometry: g, resolution }, target, setStatus);
+      const job = await api<{ id: string }>("/api/v1/aero/run", { method: "POST", json: { geometry: g, resolution, target } });
+      const r = await waitForJob<TunnelResult>(job.id, setStatus);
       setRes(r);
       setRuns((prev) => [
         { label: `Run ${prev.length + 1}`, resolution: r.grid.resolution, cd: r.cd, cl: r.cl, area: r.frontal_area_m2 },
@@ -404,14 +408,18 @@ export function WindTunnel({
             <Wind className="size-3.5" aria-hidden /> Run wind tunnel
           </Button>
         </div>
-        {!stored && (
-          <p className="mt-3 text-xs text-ink-3">No sketch saved on this body yet, so the default body is tested. Shape yours in Body design and apply it.</p>
-        )}
+        <p className="mt-3 text-xs text-ink-3">
+          {!stored
+            ? "No sketch saved on this body yet, so the default body is tested. Shape yours in Body design and apply it."
+            : g?.mesh_id
+              ? "Testing the imported CAD mesh applied in Body design."
+              : "Testing the detailed loft of the body sketch applied in Body design (wheel wells, glasshouse, diffuser)."}
+        </p>
       </Card>
       <ErrorNote error={act.error} onClose={() => act.setError(null)} />
       {act.busy && <Spinner label={`Solving the flow · ${status || "queued"} · ${fmt(elapsed, 0)} s`} />}
 
-      {res && g && (
+      {res && g && surface && (
         <>
           <Figures
             items={[
@@ -428,7 +436,7 @@ export function WindTunnel({
           />
 
           <div className="relative overflow-hidden border border-line" style={{ height: 480, background: "radial-gradient(120% 90% at 50% 25%, #2a2d33 0%, #0b0c0e 55%, #050506 100%)" }}>
-            <TunnelScene g={g} res={res} layer={layer} />
+            <TunnelScene surface={surface} res={res} layer={layer} />
             <span className="eyebrow pointer-events-none absolute left-4 top-4 text-white/50">Flow left to right · drag to orbit</span>
             <div className="absolute right-4 top-4 flex gap-1">
               {(["streamlines", "pressure", "both"] as Layer[]).map((l) => (

@@ -1,18 +1,19 @@
 "use client";
 
 import { Canvas, useThree } from "@react-three/fiber";
-import { Download, Globe, RotateCcw } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Box, Download, Globe, Grid3x3, RotateCcw, Trash2, Upload } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
 import { Studio } from "@/components/engine/Engine3D";
 import { ResearchPanel } from "@/components/ResearchPanel";
 import { Button, Card, ErrorNote, Field, Input, Note, Select, Stat, useAsync } from "@/components/ui";
-import { api } from "@/lib/api";
+import { api, API_URL, getToken } from "@/lib/api";
 import { num } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import type { Json, Param, VehicleDesign } from "@/lib/types";
+import { BodySurface, type ImportedMesh, useBodySurface } from "./BodyMesh3D";
 
 type Pt = [number, number];
 
@@ -29,6 +30,12 @@ export interface BodyGeometry {
   side_profile: Pt[];
   front_section: Pt[];
   applied_panel_mass_kg?: number | null;
+  beltline?: number;
+  tumblehome?: number;
+  plan_taper_front?: number;
+  plan_taper_rear?: number;
+  arch_clearance_mm?: number;
+  mesh_id?: string | null;
 }
 
 interface BodyAnalysis {
@@ -210,42 +217,6 @@ function SketchEditor({
 
 // ---------------------------------------------------------------- 3D preview
 
-function useBodyMesh(g: BodyGeometry) {
-  return useMemo(() => {
-    const L = g.length_mm / 1000;
-    const W = g.width_mm / 1000;
-    const H = g.height_mm / 1000;
-    const gc = g.ground_clearance_mm / 1000;
-    const side = spline([...g.side_profile].sort((a, b) => a[0] - b[0]), 16);
-    const shape = new THREE.Shape();
-    shape.moveTo(side[0][0] * L - L / 2, gc);
-    side.forEach(([x, y]) => shape.lineTo(x * L - L / 2, gc + y * (H - gc)));
-    shape.lineTo(side[side.length - 1][0] * L - L / 2, gc);
-    shape.closePath();
-    const geom = new THREE.ExtrudeGeometry(shape, { depth: 1, bevelEnabled: false, curveSegments: 1, steps: 1 });
-
-    // Half-width at a given height, read from the front section; tapered towards nose and tail.
-    const section = spline(g.front_section, 16);
-    const halfWidth = (yn: number) => {
-      let best = 0;
-      for (const [x, y] of section) if (Math.abs(y - yn) < 0.06) best = Math.max(best, x);
-      return best || 0.3;
-    };
-    const pos = geom.attributes.position;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i);
-      const y = pos.getY(i);
-      const z = pos.getZ(i);
-      const xn = (x + L / 2) / L;
-      const yn = Math.min(1, Math.max(0, (y - gc) / (H - gc)));
-      const taper = 1 - 0.16 * Math.pow(Math.abs(2 * xn - 1), 4);
-      pos.setZ(i, (z - 0.5) * 2 * (W / 2) * halfWidth(yn) * taper);
-    }
-    geom.computeVertexNormals();
-    return { geom, L, W };
-  }, [g]);
-}
-
 export function Orbit() {
   const { camera, gl } = useThree();
   useEffect(() => {
@@ -256,45 +227,6 @@ export function Orbit() {
     return () => c.dispose();
   }, [camera, gl]);
   return null;
-}
-
-export function BodyPreview({ g, groupRef, ghost = false }: { g: BodyGeometry; groupRef?: React.RefObject<THREE.Group | null>; ghost?: boolean }) {
-  const { geom } = useBodyMesh(g);
-  const r = g.wheel_diameter_mm / 2000;
-  const L = g.length_mm / 1000;
-  const W = g.width_mm / 1000;
-  const frontAxle = -L / 2 + g.front_overhang_mm / 1000;
-  const rearAxle = frontAxle + g.wheelbase_mm / 1000;
-  return (
-    <group ref={groupRef}>
-      <mesh geometry={geom}>
-        <meshPhysicalMaterial
-          color="#2a2d33"
-          metalness={0.7}
-          roughness={0.28}
-          clearcoat={1}
-          clearcoatRoughness={0.08}
-          transparent={ghost}
-          opacity={ghost ? 0.28 : 1}
-          depthWrite={!ghost}
-        />
-      </mesh>
-      {[frontAxle, rearAxle].flatMap((x) =>
-        [-1, 1].map((side) => (
-          <group key={`${x}-${side}`} position={[x, r, side * (W / 2 - 0.13)]} rotation={[Math.PI / 2, 0, 0]}>
-            <mesh>
-              <cylinderGeometry args={[r, r, 0.24, 40]} />
-              <meshStandardMaterial color="#111214" roughness={0.9} />
-            </mesh>
-            <mesh position={[0, side * 0.121, 0]}>
-              <cylinderGeometry args={[r * 0.66, r * 0.66, 0.01, 40]} />
-              <meshStandardMaterial color="#b9bdc3" metalness={1} roughness={0.25} />
-            </mesh>
-          </group>
-        )),
-      )}
-    </group>
-  );
 }
 
 // ---------------------------------------------------------------- designer
@@ -318,8 +250,10 @@ export function BodyDesigner({ design, onChange }: { design: VehicleDesign; onCh
   const [g, setG] = useState<BodyGeometry | null>(stored ?? null);
   const [analysis, setAnalysis] = useState<BodyAnalysis | null>(null);
   const [showSearch, setShowSearch] = useState(false);
+  const [wireframe, setWireframe] = useState(true);
   const groupRef = useRef<THREE.Group>(null);
   const act = useAsync();
+  const { surface, error: surfaceError } = useBodySurface(g);
 
   // Start from the stored sketch or the default one.
   useEffect(() => {
@@ -414,14 +348,23 @@ export function BodyDesigner({ design, onChange }: { design: VehicleDesign; onCh
               <Studio />
               <directionalLight position={[5, 8, 3]} intensity={1.4} />
               <directionalLight position={[-6, 3, -4]} intensity={0.5} color="#9fb4ff" />
-              <BodyPreview g={g} groupRef={groupRef} />
+              {surface && <BodySurface surface={surface} wireframe={wireframe} groupRef={groupRef} />}
               <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
                 <circleGeometry args={[6, 64]} />
                 <meshStandardMaterial color="#060607" roughness={0.9} envMapIntensity={0.15} />
               </mesh>
               <Orbit />
             </Canvas>
-            <span className="eyebrow pointer-events-none absolute left-4 top-4 text-white/50">Live preview · drag to orbit</span>
+            <span className="eyebrow pointer-events-none absolute left-4 top-4 text-white/50">
+              {surface?.kind === "mesh" ? `Imported mesh · ${num(surface.info.triangles)} triangles` : surface?.kind === "loft" ? `Lofted surface · ${num(surface.data.stats.quads)} quads` : "Building surface…"}
+            </span>
+            <button
+              type="button"
+              onClick={() => setWireframe((w) => !w)}
+              className={`absolute right-4 top-4 inline-flex items-center gap-2 border px-3 py-1.5 font-display text-[11px] font-medium uppercase tracking-[0.16em] ${wireframe ? "border-white/70 text-white" : "border-white/20 text-white/70 hover:border-white/50"}`}
+            >
+              <Grid3x3 className="size-3.5" /> Wireframe
+            </button>
             <button
               type="button"
               onClick={exportStl}
@@ -481,7 +424,12 @@ export function BodyDesigner({ design, onChange }: { design: VehicleDesign; onCh
           </Card>
       </div>
 
-      <ErrorNote error={act.error} />
+      <div className="grid gap-6 xl:grid-cols-2">
+        <SurfaceDetail g={g} set={set} />
+        <MeshImport g={g} set={set} />
+      </div>
+
+      <ErrorNote error={act.error ?? surfaceError} />
       {analysis && (
         <>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
@@ -538,5 +486,156 @@ export function BodyDesigner({ design, onChange }: { design: VehicleDesign; onCh
         </>
       )}
     </div>
+  );
+}
+
+
+// ---------------------------------------------------------------- surface detail
+
+const DETAIL: { key: keyof BodyGeometry; label: string; help: string; min: number; max: number; step: number; unit: string; scale: number; fallback: number }[] = [
+  { key: "beltline", label: "Beltline", help: "Height where the glasshouse starts, as a share of body height.", min: 0.3, max: 0.85, step: 0.01, unit: "%", scale: 100, fallback: 0.6 },
+  { key: "tumblehome", label: "Tumblehome", help: "How far the side glass leans in towards the roof.", min: 0, max: 0.4, step: 0.01, unit: "%", scale: 100, fallback: 0.14 },
+  { key: "plan_taper_front", label: "Front corner rounding", help: "Plan-view taper of the front bumper corners.", min: 0, max: 0.4, step: 0.01, unit: "%", scale: 100, fallback: 0.14 },
+  { key: "plan_taper_rear", label: "Rear corner rounding", help: "Plan-view taper of the rear bumper corners.", min: 0, max: 0.4, step: 0.01, unit: "%", scale: 100, fallback: 0.08 },
+  { key: "arch_clearance_mm", label: "Wheel-well gap", help: "Clearance between tyre and wheel well.", min: 10, max: 150, step: 5, unit: "mm", scale: 1, fallback: 40 },
+];
+
+function SurfaceDetail({ g, set }: { g: BodyGeometry; set: (p: Partial<BodyGeometry>) => void }) {
+  return (
+    <Card title="Surface detail" subtitle="Shape the 3D skin beyond the two sketches. The same surface is exported and tested in the wind tunnel.">
+      <div className="space-y-4">
+        {DETAIL.map((d) => {
+          const v = (g[d.key] as number | undefined) ?? d.fallback;
+          return (
+            <label key={d.key} className="grid grid-cols-[10rem_1fr_4.5rem] items-center gap-4" title={d.help}>
+              <span className="text-sm">{d.label}</span>
+              <input
+                type="range"
+                min={d.min}
+                max={d.max}
+                step={d.step}
+                value={v}
+                onChange={(e) => set({ [d.key]: Number(e.target.value) } as Partial<BodyGeometry>)}
+                className="accent-[var(--ink)]"
+              />
+              <span className="text-right text-sm tabular">
+                {num(v * d.scale)} {d.unit}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------- CAD import
+
+function MeshImport({ g, set }: { g: BodyGeometry; set: (p: Partial<BodyGeometry>) => void }) {
+  const [meshes, setMeshes] = useState<ImportedMesh[]>([]);
+  const [units, setUnits] = useState("mm");
+  const [up, setUp] = useState("z");
+  const [offset, setOffset] = useState(0);
+  const act = useAsync();
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    api<ImportedMesh[]>("/api/v1/body/meshes").then(setMeshes).catch(() => undefined);
+  }, []);
+
+  const upload = (file: File) =>
+    act.run(async () => {
+      const q = new URLSearchParams({ filename: file.name, units, up, ground_offset_mm: String(offset) });
+      const token = getToken();
+      const res = await fetch(`${API_URL}/api/v1/body/meshes?${q}`, {
+        method: "POST",
+        body: await file.arrayBuffer(),
+        headers: { "content-type": "application/octet-stream", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : "Upload failed");
+      setMeshes((m) => [data as ImportedMesh, ...m]);
+      set({ mesh_id: data.id });
+    });
+
+  const remove = (id: string) =>
+    act.run(async () => {
+      await api(`/api/v1/body/meshes/${id}`, { method: "DELETE" });
+      setMeshes((m) => m.filter((x) => x.id !== id));
+      if (g.mesh_id === id) set({ mesh_id: null });
+    });
+
+  const active = meshes.find((m) => m.id === g.mesh_id);
+  return (
+    <Card
+      title="Import a CAD body"
+      subtitle="Bring a detailed surface from Blender, Fusion, Onshape or any CAD tool as STL or OBJ. It is placed nose-first on the road and replaces the loft in the wind tunnel."
+    >
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label="Units">
+          <Select value={units} onChange={(e) => setUnits(e.target.value)} className="w-24">
+            <option value="mm">mm</option>
+            <option value="cm">cm</option>
+            <option value="m">m</option>
+            <option value="in">in</option>
+          </Select>
+        </Field>
+        <Field label="Up axis">
+          <Select value={up} onChange={(e) => setUp(e.target.value)} className="w-28">
+            <option value="z">Z up</option>
+            <option value="y">Y up</option>
+          </Select>
+        </Field>
+        <Field label="Lift off road (mm)">
+          <Input type="number" value={offset} onChange={(e) => setOffset(Number(e.target.value))} className="w-28" />
+        </Field>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".stl,.obj"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) upload(f);
+            e.target.value = "";
+          }}
+        />
+        <Button variant="primary" onClick={() => fileRef.current?.click()} loading={act.busy}>
+          <Upload className="size-3.5" /> Upload STL / OBJ
+        </Button>
+      </div>
+      <ErrorNote error={act.error} onClose={() => act.setError(null)} />
+      <div className="mt-4 divide-y divide-[var(--line)] border-y border-line">
+        <button
+          type="button"
+          onClick={() => set({ mesh_id: null })}
+          className={`flex w-full items-center gap-3 py-2.5 text-left text-sm ${!g.mesh_id ? "text-ink" : "text-ink-2 hover:text-ink"}`}
+        >
+          <Grid3x3 className="size-3.5" aria-hidden />
+          <span className="flex-1">Lofted from the sketch</span>
+          {!g.mesh_id && <span className="eyebrow">In use</span>}
+        </button>
+        {meshes.map((m) => (
+          <div key={m.id} className="flex items-center gap-3 py-2.5 text-sm">
+            <Box className="size-3.5 text-ink-3" aria-hidden />
+            <button type="button" onClick={() => set({ mesh_id: m.id })} className={`flex-1 text-left ${g.mesh_id === m.id ? "text-ink" : "text-ink-2 hover:text-ink"}`}>
+              {m.name}
+              <span className="ml-2 text-xs text-ink-3 tabular">
+                {num(m.length * 1000)} × {num(m.width * 1000)} × {num(m.height * 1000)} mm · {num(m.triangles)} triangles
+              </span>
+            </button>
+            {g.mesh_id === m.id && <span className="eyebrow">In use</span>}
+            <button type="button" onClick={() => remove(m.id)} aria-label={`Delete ${m.name}`} className="text-ink-3 hover:text-ink">
+              <Trash2 className="size-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
+      {active && (
+        <p className="mt-3 text-xs text-ink-3">
+          Frontal area, panel mass and the other figures below still come from the sketch; the wind tunnel measures the imported mesh.
+        </p>
+      )}
+    </Card>
   );
 }
