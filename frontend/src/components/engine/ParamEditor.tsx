@@ -3,6 +3,7 @@
 import clsx from "clsx";
 import { Plus, Trash2 } from "lucide-react";
 import { useMemo } from "react";
+import { twMerge } from "tailwind-merge";
 import { Button, Input, Select, SourceBadge, inputClass } from "@/components/ui";
 import { getAt, SOURCE_LABEL, setAt } from "@/lib/format";
 import { useSession } from "@/lib/session";
@@ -49,60 +50,49 @@ function ParamRow({
             .filter((m) => ["density", "youngs_modulus", "yield_strength", "ultimate_strength"].every((k) => k in m.properties))
             .map((m) => ({ id: m.id, label: `${m.name} ${m.condition}${m.custom ? " (custom)" : ""}` }));
     return (
-      <div className="grid gap-1 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] sm:gap-3">
-        <div>
-          <div className="text-sm text-ink">{spec.label}</div>
-          <div className="text-xs text-ink-3">{help}</div>
-        </div>
-        <Select value={String(raw ?? "")} onChange={(e) => onChange(setAt(design, spec.path, e.target.value))}>
+      <Row label={spec.label} help={help}>
+        <Select value={String(raw ?? "")} onChange={(e) => onChange(setAt(design, spec.path, e.target.value))} className="w-[26rem] max-w-full">
           {options.map((o) => (
             <option key={o.id} value={o.id}>
               {o.label}
             </option>
           ))}
         </Select>
-      </div>
+      </Row>
     );
   }
 
   if (spec.kind === "int") {
     return (
-      <div className="grid gap-1 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] sm:gap-3">
-        <div>
-          <div className="text-sm text-ink">
-            {spec.label} {spec.unit !== "-" && <span className="text-ink-3">({spec.unit})</span>}
-          </div>
-          <div className="text-xs text-ink-3">{help}</div>
+      <Row label={spec.label} help={help}>
+        <div className="w-44">
+          <UnitInput
+            unit={spec.unit}
+            type="number"
+            min={spec.min}
+            max={spec.max}
+            step={spec.step ?? 1}
+            value={Number(raw ?? 0)}
+            onChange={(e) => onChange(setAt(design, spec.path, Math.round(Number(e.target.value))))}
+          />
         </div>
-        <Input
-          type="number"
-          min={spec.min}
-          max={spec.max}
-          step={spec.step ?? 1}
-          value={Number(raw ?? 0)}
-          onChange={(e) => onChange(setAt(design, spec.path, Math.round(Number(e.target.value))))}
-        />
-      </div>
+      </Row>
     );
   }
 
   const p = raw as Param | null | undefined;
   if (spec.optional && !p) {
     return (
-      <div className="flex items-center justify-between gap-3 py-2">
-        <div>
-          <div className="text-sm text-ink">{spec.label}</div>
-          <div className="text-xs text-ink-3">{help}</div>
-        </div>
+      <Row label={spec.label} help={help}>
         <Button
           size="sm"
           onClick={() =>
             onChange(setAt(design, spec.path, { value: spec.min === 1 ? 100 : spec.min, source: "user", tol: 0, ref: null }))
           }
         >
-          <Plus className="size-3.5" /> Set
+          <Plus className="size-3.5" /> Set target
         </Button>
-      </div>
+      </Row>
     );
   }
   if (!p) return null;
@@ -110,19 +100,11 @@ function ParamRow({
   const update = (patch: Partial<Param>) => onChange(setAt(design, spec.path, { ...p, ...patch }));
 
   return (
-    <div className="grid gap-1 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] sm:gap-3">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-1.5 text-sm text-ink">
-          {spec.label}
-          {spec.unit !== "-" && <span className="text-ink-3">({spec.unit})</span>}
-          <SourceBadge source={p.source} reference={p.ref} />
-        </div>
-        <div className="text-xs text-ink-3">{help}</div>
-        {level === "research" && p.ref && <div className="mt-0.5 text-[11px] italic text-ink-3">Ref: {p.ref}</div>}
-      </div>
-      <div className="flex flex-wrap items-start gap-1.5">
-        <div className="min-w-[90px] flex-1">
-          <Input
+    <Row label={spec.label} help={help} extra={<SourceBadge source={p.source} reference={p.ref} />} reference={level === "research" ? p.ref : null}>
+      <div className="flex items-start gap-2">
+        <div className="w-44">
+          <UnitInput
+            unit={spec.unit}
             type="number"
             step={spec.step ?? "any"}
             value={Number.isFinite(p.value) ? p.value : ""}
@@ -132,14 +114,16 @@ function ParamRow({
             onChange={(e) => update({ value: e.target.value === "" ? NaN : Number(e.target.value) })}
           />
           {outOfRange && (
-            <div className="mt-0.5 text-[11px] text-[var(--critical)]">
+            <div className="mt-1 text-[11px] text-[var(--critical)]">
               Allowed {spec.min}–{spec.max}
             </div>
           )}
         </div>
         {level !== "beginner" && (
-          <div className="w-[88px]">
-            <Input
+          <div className="w-24">
+            <UnitInput
+              unit="±"
+              unitFirst
               type="number"
               min={0}
               step={spec.step ?? "any"}
@@ -149,12 +133,11 @@ function ParamRow({
               onChange={(e) => update({ tol: Math.max(0, Number(e.target.value) || 0) })}
               className="text-ink-2"
             />
-            <div className="mt-0.5 text-[10px] text-ink-3">± uncertainty</div>
           </div>
         )}
         {level !== "beginner" && (
           <select
-            className={clsx(inputClass, "w-[118px] text-xs")}
+            className={twMerge(inputClass, "w-36 text-xs")}
             value={p.source}
             aria-label={`${spec.label} data source`}
             onChange={(e) => update({ source: e.target.value as Source })}
@@ -169,6 +152,60 @@ function ParamRow({
           </select>
         )}
       </div>
+    </Row>
+  );
+}
+
+/** One parameter row: name and explanation on the left, controls aligned on the right. */
+function Row({
+  label,
+  help,
+  extra,
+  reference,
+  children,
+}: {
+  label: string;
+  help: string;
+  extra?: React.ReactNode;
+  reference?: string | null;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid gap-3 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start lg:gap-8">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2 text-[14px] text-ink">
+          {label}
+          {extra}
+        </div>
+        <p className="mt-1 max-w-xl text-xs leading-relaxed text-ink-3">{help}</p>
+        {reference && <p className="mt-1 text-[11px] italic text-ink-3">Ref: {reference}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** Numeric input with its unit set inside the field. */
+function UnitInput({
+  unit,
+  unitFirst,
+  className,
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & { unit: string; unitFirst?: boolean }) {
+  const show = unit && unit !== "-";
+  return (
+    <div className="relative">
+      <Input {...props} className={twMerge(show ? (unitFirst ? "pl-7" : "pr-16") : "", className)} />
+      {show && (
+        <span
+          className={clsx(
+            "pointer-events-none absolute top-1/2 -translate-y-1/2 truncate font-display text-[11px] uppercase tracking-[0.08em] text-ink-3",
+            unitFirst ? "left-2.5" : "right-2.5 max-w-14",
+          )}
+        >
+          {unit}
+        </span>
+      )}
     </div>
   );
 }
