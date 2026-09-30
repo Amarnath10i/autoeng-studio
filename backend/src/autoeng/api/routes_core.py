@@ -25,6 +25,7 @@ from autoeng.domain.components import CHANNELS, COMPONENTS, EDGES
 from autoeng.domain.engine_design import PARAM_SPECS, EngineDesign
 from autoeng.domain.fuels import FUELS
 from autoeng.domain.materials import LIBRARY, PROPERTY_UNITS, Material
+from autoeng.physics import aero_lbm3d
 from autoeng.platform.body import BodyGeometry, default_geometry
 from autoeng.platform.body import analyse as analyse_body
 from autoeng.platform.catalog import catalog_dict
@@ -68,6 +69,8 @@ def meta() -> dict:
         "limits": {"max_samples": MAX_SAMPLES, "default_samples": DEFAULT_SAMPLES},
         "sweepable": SWEEPABLE,
         "scenarios": [{"id": k, **sc.model_dump(), "duration_s": sc.duration_s} for k, sc in BUILTIN.items()],
+        "wind_tunnel": {"resolutions": [{"id": k, **v} for k, v in aero_lbm3d.RESOLUTIONS.items()],
+                        "assumptions": aero_lbm3d.ASSUMPTIONS},
     }
 
 

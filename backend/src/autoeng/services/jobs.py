@@ -35,7 +35,7 @@ from autoeng.settings import get_settings
 log = logging.getLogger(__name__)
 
 JOB_KINDS = ("simulate", "compare", "advise", "calibrate", "vehicle", "scenario", "weather_study", "sweep",
-             "material_study")
+             "material_study", "wind_tunnel")
 SERVER = "server"
 
 
@@ -94,7 +94,29 @@ def _execute_platform(kind: str, payload: dict, materials: dict, samples: int, s
             vehicle=VehicleDesign.model_validate(payload["vehicle"]) if payload.get("vehicle") else None,
             scenario=Scenario.model_validate(payload["scenario"]) if payload.get("scenario") else None,
             samples=samples, seed=seed)
+    if kind == "wind_tunnel":
+        return wind_tunnel(payload)
     raise ValueError(f"Unknown job kind '{kind}'")
+
+
+def body_geometry(payload: dict):
+    """The body sketch for an aero run: given directly, from the vehicle's body component, or the default."""
+    from autoeng.platform.body import BodyGeometry, default_geometry
+    from autoeng.platform.vehicle import VehicleDesign
+
+    if payload.get("geometry"):
+        return BodyGeometry.model_validate(payload["geometry"])
+    if payload.get("vehicle"):
+        bodies = VehicleDesign.model_validate(payload["vehicle"]).of_type("body")
+        if bodies and bodies[0][1].params and bodies[0][1].params.get("geometry"):
+            return BodyGeometry.model_validate(bodies[0][1].params["geometry"])
+    return BodyGeometry.model_validate(default_geometry())
+
+
+def wind_tunnel(payload: dict) -> dict:
+    from autoeng.physics import aero_lbm3d
+
+    return aero_lbm3d.run(body_geometry(payload), payload.get("resolution", "standard"))
 
 
 # --- queue ---------------------------------------------------------------------
