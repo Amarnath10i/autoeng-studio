@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   description: "Design, simulate, analyse and validate automobiles and their components.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" data-theme="dark" className={`${inter.variable} ${barlow.variable} h-full`} suppressHydrationWarning>
       <head>
