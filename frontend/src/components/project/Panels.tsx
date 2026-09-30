@@ -114,23 +114,36 @@ export function HistoryPanel({ state }: { state: ProjectState }) {
   return (
     <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
       <Card title={<span className="inline-flex items-center gap-1.5"><HistoryIcon className="size-4" /> Version history</span>} subtitle="Every saved state is kept. Reverting creates a new version; history is never rewritten.">
-        <ol className="space-y-1">
-          {versions.map((v) => (
-            <li key={v.id} className="flex flex-wrap items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-surface-2">
-              <span className="w-10 font-mono text-xs text-ink-3">v{v.number}</span>
-              <span className="rounded bg-surface-3 px-1.5 text-[11px] text-ink-2">{v.branch}</span>
-              {v.merge_parent_id && <GitMerge className="size-3.5 text-ink-3" aria-label="Merge" />}
-              <span className="min-w-0 flex-1 truncate">{v.message}</span>
-              <span className="text-xs text-ink-3">{timeAgo(v.created_at)}</span>
-              {v.id === head?.id ? (
-                <span className="text-xs font-medium text-accent">current</span>
-              ) : (
-                <Button size="sm" variant="ghost" onClick={() => revert(v)} title={`Make v${v.number} the new head of ${branch}`}>
-                  <RotateCcw className="size-3.5" /> Restore
-                </Button>
-              )}
-            </li>
-          ))}
+        <ol className="relative ml-3 border-l border-line">
+          {versions.map((v) => {
+            const current = v.id === head?.id;
+            return (
+              <li key={v.id} className="group relative flex flex-wrap items-start gap-4 py-4 pl-7">
+                <span
+                  className={`absolute -left-[5px] top-[22px] size-[9px] rounded-full border ${current ? "border-ink bg-ink" : "border-line-strong bg-page"}`}
+                  aria-hidden
+                />
+                <div className="w-14 shrink-0">
+                  <div className="font-display text-xl font-light tracking-wide text-ink">v{v.number}</div>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="eyebrow">{v.branch}</span>
+                    {v.merge_parent_id && <GitMerge className="size-3.5 text-ink-3" aria-label="Merge" />}
+                    <span className="text-xs text-ink-3">· {timeAgo(v.created_at)}</span>
+                  </div>
+                  <div className="mt-1 text-sm text-ink">{v.message}</div>
+                </div>
+                {current ? (
+                  <span className="eyebrow text-ink">Current</span>
+                ) : (
+                  <Button size="sm" variant="ghost" className="opacity-60 group-hover:opacity-100" onClick={() => revert(v)} title={`Make v${v.number} the new head of ${branch}`}>
+                    <RotateCcw className="size-3.5" /> Restore
+                  </Button>
+                )}
+              </li>
+            );
+          })}
         </ol>
       </Card>
       <div className="space-y-4">
@@ -211,15 +224,15 @@ export function LimitsTable({ limits, componentName }: { limits: LimitResult[]; 
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[760px] text-sm">
-        <thead className="text-left text-xs text-ink-2">
-          <tr className="border-b border-line">
-            <th className="py-2 pr-3 font-medium">Status</th>
-            <th className="py-2 pr-3 font-medium">Component · check</th>
-            <th className="py-2 pr-3 text-right font-medium">Load (nominal / 95 %)</th>
-            <th className="py-2 pr-3 text-right font-medium">Allowable</th>
-            <th className="py-2 pr-3 text-right font-medium">Safety factor (nom / 5 %)</th>
-            <th className="py-2 pr-3 text-right font-medium">P(exceed)</th>
-            <th className="py-2 font-medium">Where</th>
+        <thead className="text-left">
+          <tr className="border-b border-line-strong">
+            <th className="eyebrow py-3 pr-3 font-medium">Status</th>
+            <th className="eyebrow py-3 pr-3 font-medium">Component · check</th>
+            <th className="eyebrow py-3 pr-3 text-right font-medium">Load (nom / 95 %)</th>
+            <th className="eyebrow py-3 pr-3 text-right font-medium">Allowable</th>
+            <th className="eyebrow py-3 pr-3 text-right font-medium">Safety factor (nom / 5 %)</th>
+            <th className="eyebrow py-3 pr-3 text-right font-medium">P(exceed)</th>
+            <th className="eyebrow py-3 font-medium">Where</th>
           </tr>
         </thead>
         <tbody className="tabular">
