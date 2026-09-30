@@ -1,14 +1,24 @@
 "use client";
 
 import { Cpu, GitBranch, RotateCcw, Save } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
+import { type FigureItem, Figures, PageHero } from "@/components/layout";
 import { Button, ErrorNote, Input, Select } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import type { Worker } from "@/lib/types";
 import type { ProjectState } from "./useProject";
 
-export function ProjectBar({ state, children }: { state: ProjectState; children?: React.ReactNode }) {
+export function ProjectBar({
+  state,
+  children,
+  figures,
+}: {
+  state: ProjectState;
+  children?: React.ReactNode;
+  figures?: FigureItem[];
+}) {
   const { project, branch, head, dirty, commit, discard, switchBranch } = state;
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -29,57 +39,69 @@ export function ProjectBar({ state, children }: { state: ProjectState; children?
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-end gap-4">
-        <div className="min-w-0">
-          <div className="eyebrow">
-            {project.kind === "vehicle" ? "Vehicle project" : "Engine lab"} · v{head?.number} · {branch}
-          </div>
-          <h1 className="display mt-2 truncate text-3xl font-light tracking-[0.06em] sm:text-4xl">{project.name}</h1>
-          <p className="mt-1 truncate text-xs text-ink-3">{head?.message}</p>
-        </div>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <label className="inline-flex items-center gap-1.5 text-xs text-ink-2">
-            <GitBranch className="size-3.5" aria-hidden />
-            <Select
-              value={branch}
-              onChange={(e) => {
-                if (dirty && !confirm("Discard unsaved changes and switch branch?")) return;
-                switchBranch(e.target.value);
-              }}
-              className="h-8 w-40 text-xs"
-              aria-label="Branch"
-            >
-              {project.branches.map((b) => (
-                <option key={b.name} value={b.name}>
-                  {b.name}
-                </option>
-              ))}
-            </Select>
-          </label>
+    <PageHero
+      eyebrow={
+        <span className="inline-flex items-center gap-3">
+          <Link href="/" className="hover:text-ink">
+            Garage
+          </Link>
+          <span aria-hidden>/</span>
+          {project.kind === "vehicle" ? "Vehicle" : "Engine lab"}
+          <span aria-hidden>·</span>v{head?.number}
+          <span aria-hidden>·</span>
+          <span className="inline-flex items-center gap-1">
+            <GitBranch className="size-3" aria-hidden />
+            {branch}
+          </span>
+        </span>
+      }
+      title={project.name}
+      description={<span className="text-ink-3">{head?.message}</span>}
+      actions={
+        <>
+          <Select
+            value={branch}
+            onChange={(e) => {
+              if (dirty && !confirm("Discard unsaved changes and switch branch?")) return;
+              switchBranch(e.target.value);
+            }}
+            className="h-10 w-40"
+            aria-label="Branch"
+          >
+            {project.branches.map((b) => (
+              <option key={b.name} value={b.name}>
+                {b.name}
+              </option>
+            ))}
+          </Select>
           {children}
-          {dirty && (
-            <>
-              <Input
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Describe this change"
-                className="h-8 w-56 text-xs"
-                onKeyDown={(e) => e.key === "Enter" && save()}
-                aria-label="Commit message"
-              />
-              <Button size="sm" variant="primary" onClick={save} loading={busy}>
-                <Save className="size-3.5" aria-hidden /> Save version
-              </Button>
-              <Button size="sm" variant="ghost" onClick={discard}>
-                <RotateCcw className="size-3.5" aria-hidden /> Discard
-              </Button>
-            </>
-          )}
-        </div>
+        </>
+      }
+    >
+      <div className="space-y-6">
+        {figures && <Figures items={figures} />}
+        {dirty && (
+          <div className="flex flex-wrap items-center gap-3 border-l-2 border-ink bg-surface px-5 py-3">
+            <span className="eyebrow text-ink">Unsaved changes</span>
+            <Input
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Describe this change"
+              className="h-9 min-w-[220px] flex-1"
+              onKeyDown={(e) => e.key === "Enter" && save()}
+              aria-label="Commit message"
+            />
+            <Button variant="primary" onClick={save} loading={busy}>
+              <Save className="size-3.5" aria-hidden /> Save version
+            </Button>
+            <Button variant="ghost" onClick={discard}>
+              <RotateCcw className="size-3.5" aria-hidden /> Discard
+            </Button>
+          </div>
+        )}
+        <ErrorNote error={error} onClose={() => setError(null)} />
       </div>
-      <ErrorNote error={error} onClose={() => setError(null)} />
-    </div>
+    </PageHero>
   );
 }
 
@@ -91,10 +113,12 @@ export function ComputePicker({ value, onChange }: { value: string; onChange: (v
     api<Worker[]>("/api/v1/workers").then(setWorkers).catch(() => setWorkers([]));
   }, []);
   return (
-    <label className="inline-flex items-center gap-1.5 text-xs text-ink-2" title="Where this computation runs">
-      <Cpu className="size-3.5" aria-hidden />
-      <Select value={value} onChange={(e) => onChange(e.target.value)} className="h-8 w-56 text-xs" aria-label="Compute target">
-        <option value="server">Server ({health?.compute.gpu_available ? health.compute.gpu_device : "CPU"})</option>
+    <label className="inline-flex items-center gap-2 text-xs text-ink-2" title="Where this computation runs">
+      <Cpu className="size-4 text-ink-3" strokeWidth={1.5} aria-hidden />
+      <Select value={value} onChange={(e) => onChange(e.target.value)} className="h-10 w-60" aria-label="Compute target">
+        <option value="server">
+          Server · {health?.compute.gpu_available ? (health.compute.gpu_device ?? "GPU").replace(/^NVIDIA (GeForce )?/, "") : "CPU"}
+        </option>
         {workers
           .filter((w) => w.paired)
           .map((w) => (

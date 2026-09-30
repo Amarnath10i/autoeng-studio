@@ -3,10 +3,12 @@
 import { Activity, CarFront, CloudSun, Compass, FlaskConical, GitBranch, Network, Play, Timer } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { HistoryPanel, TrustPanel } from "@/components/project/Panels";
+import { Container, type FigureItem, StickyTabs } from "@/components/layout";
 import { ComputePicker, ProjectBar } from "@/components/project/ProjectBar";
 import type { ProjectState } from "@/components/project/useProject";
 import { Button, Empty, ErrorNote, Field, Input, Spinner, Tabs, useAsync } from "@/components/ui";
 import { api, runJob } from "@/lib/api";
+import { fmt, kwToHp } from "@/lib/format";
 import type { Status, VehicleDesign } from "@/lib/types";
 import { ArchitectureTab } from "./Architecture";
 import { BodyDesigner } from "./BodyDesigner";
@@ -61,37 +63,76 @@ export function VehicleWorkspace({ state }: { state: ProjectState }) {
     state.edit({ ...design, targets: t });
   };
 
+  const perf = result?.performance;
+  const bodyParams = Object.values(design.components).find((c) => c.type === "body")?.params as
+    | Record<string, { value: number }>
+    | null
+    | undefined;
+  const figures: FigureItem[] = result
+    ? [
+        {
+          label: "0–100 km/h",
+          value: perf ? fmt(perf.accel_0_100_s.nominal, 1) : "–",
+          unit: "s",
+          sub: perf ? `90 % range ${fmt(perf.accel_0_100_s.p05, 1)}–${fmt(perf.accel_0_100_s.p95, 1)} s` : "Complete the driveline",
+        },
+        { label: "Top speed", value: perf ? fmt(perf.top_speed_kmh.nominal, 0) : "–", unit: "km/h", sub: perf ? `in gear ${perf.top_speed_gear}` : undefined },
+        {
+          label: "Power",
+          value: fmt(result.engine.summary.peak_power.nominal, 0),
+          unit: "kW",
+          sub: `${fmt(kwToHp(result.engine.summary.peak_power.nominal), 0)} hp · ${fmt(result.engine.summary.peak_torque.nominal, 0)} N·m`,
+        },
+        {
+          label: "Mass",
+          value: bodyParams?.mass ? fmt(bodyParams.mass.value, 0) : "–",
+          unit: "kg",
+          sub: bodyParams?.mass ? `${fmt((result.engine.summary.peak_power.nominal / bodyParams.mass.value) * 1000, 0)} W/kg` : undefined,
+        },
+      ]
+    : ["0–100 km/h", "Top speed", "Power", "Mass"].map((label) => ({
+        label,
+        value: "—",
+        sub: sim.busy ? "Simulating…" : "Run a simulation",
+      }));
+
   return (
-    <div className="space-y-4">
-      <ProjectBar state={state}>
-        <label className="inline-flex items-center gap-1 text-xs text-ink-2">
-          Samples
-          <Input type="number" min={1} max={2000} value={samples} onChange={(e) => setSamples(Number(e.target.value))} className="h-8 w-20 text-xs" />
+    <div>
+      <ProjectBar state={state} figures={figures}>
+        <label className="inline-flex items-center gap-2" title="Monte Carlo samples for uncertainty">
+          <span className="eyebrow">Samples</span>
+          <Input type="number" min={1} max={2000} value={samples} onChange={(e) => setSamples(Number(e.target.value))} className="h-10 w-24" />
         </label>
         <ComputePicker value={target} onChange={setTarget} />
-        <Button variant="primary" onClick={simulate} loading={sim.busy}>
+        <Button variant="primary" size="lg" onClick={simulate} loading={sim.busy}>
           <Play className="size-3.5" aria-hidden /> Run simulation
         </Button>
       </ProjectBar>
+      <StickyTabs>
+        <Tabs
+          tabs={[
+            { id: "architecture", label: "Architecture", icon: Network },
+            { id: "body", label: "Body design", icon: CarFront },
+            { id: "performance", label: "Performance", icon: Activity },
+            { id: "scenarios", label: "Scenarios", icon: Timer },
+            { id: "weather", label: "Weather study (GPU)", icon: CloudSun },
+            { id: "materials", label: "Materials", icon: FlaskConical },
+            { id: "history", label: "History", icon: GitBranch },
+            { id: "trust", label: "Trust", icon: Compass },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
+      </StickyTabs>
+      <Container className="space-y-6 py-10">
       <ErrorNote error={sim.error} onClose={() => sim.setError(null)} />
-      <Tabs
-        tabs={[
-          { id: "architecture", label: "Architecture", icon: Network },
-          { id: "body", label: "Body design", icon: CarFront },
-          { id: "performance", label: "Performance", icon: Activity },
-          { id: "scenarios", label: "Scenarios", icon: Timer },
-          { id: "weather", label: "Weather study (GPU)", icon: CloudSun },
-          { id: "materials", label: "Materials", icon: FlaskConical },
-          { id: "history", label: "History", icon: GitBranch },
-          { id: "trust", label: "Trust", icon: Compass },
-        ]}
-        value={tab}
-        onChange={setTab}
-      />
       {tab === "architecture" && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-end gap-3 border border-line bg-surface px-4 py-3">
-            <span className="text-sm font-medium">Vehicle targets</span>
+        <div className="space-y-6">
+          <div className="flex flex-wrap items-end gap-6 border border-line bg-surface px-5 py-4">
+            <div className="mr-4">
+              <div className="eyebrow">Requirements</div>
+              <div className="display mt-1 text-[15px]">Vehicle targets</div>
+            </div>
             <Field label="0–100 km/h ≤ (s)">
               <Input type="number" value={design.targets.accel_0_100_s ?? ""} onChange={(e) => setTargets("accel_0_100_s", e.target.value)} className="w-28" />
             </Field>
@@ -113,6 +154,7 @@ export function VehicleWorkspace({ state }: { state: ProjectState }) {
       {tab === "materials" && <MaterialStudy design={design} target={target} setTarget={setTarget} />}
       {tab === "history" && <HistoryPanel state={state} />}
       {tab === "trust" && (result ? <TrustPanel trust={{ ...result.engine.trust, ...result.trust }} compute={result.engine.compute} /> : <Empty title="Press Simulate" />)}
+      </Container>
     </div>
   );
 }

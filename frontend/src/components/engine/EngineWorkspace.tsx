@@ -2,12 +2,13 @@
 
 import { Activity, Compass, FlaskRound, GitBranch, Grid3x3, Play, ShieldCheck, SlidersHorizontal, Split, Wand2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { Container, type FigureItem, StickyTabs } from "@/components/layout";
 import { ComputePicker, ProjectBar } from "@/components/project/ProjectBar";
 import { HistoryPanel, TrustPanel } from "@/components/project/Panels";
 import type { ProjectState } from "@/components/project/useProject";
-import { Button, Card, Empty, ErrorNote, Input, Spinner, Stat, Tabs, useAsync } from "@/components/ui";
+import { Button, Card, Empty, ErrorNote, Input, Spinner, Tabs, useAsync } from "@/components/ui";
 import { api, runJob } from "@/lib/api";
-import { fmt } from "@/lib/format";
+import { fmt, kwToHp } from "@/lib/format";
 import type { EngineResult, Param } from "@/lib/types";
 import { AdvisorTab, LimitsTab, WhatIfTab } from "./AnalyzeTabs";
 import { ComponentStatusList, DynoTab } from "./DynoTab";
@@ -52,50 +53,62 @@ export function EngineWorkspace({ state }: { state: ProjectState }) {
 
   const runBar = (
     <>
-      <label className="inline-flex items-center gap-1 text-xs text-ink-2" title="Monte Carlo samples for uncertainty">
-        Samples
-        <Input type="number" min={1} max={2000} value={samples} onChange={(e) => setSamples(Number(e.target.value))} className="h-8 w-20 text-xs" />
+      <label className="inline-flex items-center gap-2" title="Monte Carlo samples for uncertainty">
+        <span className="eyebrow">Samples</span>
+        <Input type="number" min={1} max={2000} value={samples} onChange={(e) => setSamples(Number(e.target.value))} className="h-10 w-24" />
       </label>
       <ComputePicker value={target} onChange={setTarget} />
-      <Button variant="primary" onClick={simulate} loading={sim.busy}>
+      <Button variant="primary" size="lg" onClick={simulate} loading={sim.busy}>
         <Play className="size-3.5" aria-hidden /> Run simulation
       </Button>
     </>
   );
 
+  const figures: FigureItem[] = result
+    ? [
+        { label: "Peak power", value: fmt(result.summary.peak_power.nominal, 0), unit: "kW", sub: `${fmt(kwToHp(result.summary.peak_power.nominal), 0)} hp · ${fmt(result.summary.peak_power.p05, 0)}–${fmt(result.summary.peak_power.p95, 0)} kW` },
+        { label: "Peak torque", value: fmt(result.summary.peak_torque.nominal, 0), unit: "N·m", sub: `at ${fmt(result.summary.peak_torque.rpm, 0)} rpm` },
+        { label: "Displacement", value: fmt(result.summary.displacement_l, 2), unit: "L", sub: `${g.cylinders} cylinders · ${fmt(result.summary.specific_power_kw_per_l, 0)} kW/L` },
+        { label: "Max boost", value: fmt(result.summary.max_boost.nominal, 2), unit: "bar", sub: `from ${fmt(result.summary.max_boost.rpm, 0)} rpm` },
+      ]
+    : ["Peak power", "Peak torque", "Displacement", "Max boost"].map((label) => ({
+        label,
+        value: "—",
+        sub: sim.busy ? "Simulating…" : "Run a simulation",
+      }));
+
   const needsResult = (node: React.ReactNode) =>
     result ? node : sim.busy ? <Spinner label={`Simulating${jobStatus ? ` (${jobStatus})` : ""}…`} /> : <Empty title="Run a simulation first">Press Simulate.</Empty>;
 
   return (
-    <div className="space-y-4">
-      <ProjectBar state={state}>{runBar}</ProjectBar>
+    <div>
+      <ProjectBar state={state} figures={figures}>
+        {runBar}
+      </ProjectBar>
+      <StickyTabs>
+        <Tabs
+          tabs={[
+            { id: "design", label: "Design", icon: SlidersHorizontal },
+            { id: "dyno", label: "Virtual dyno", icon: Activity },
+            { id: "limits", label: "Limits", icon: ShieldCheck },
+            { id: "whatif", label: "What-if", icon: Split },
+            { id: "advisor", label: "Upgrade advisor", icon: Wand2 },
+            { id: "explore", label: "Explore (GPU)", icon: Grid3x3 },
+            { id: "test", label: "Test & calibrate", icon: FlaskRound },
+            { id: "history", label: "History", icon: GitBranch },
+            { id: "trust", label: "Trust", icon: Compass },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
+      </StickyTabs>
+      <Container className="space-y-6 py-10">
       <ErrorNote error={sim.error} onClose={() => sim.setError(null)} />
-      <Tabs
-        tabs={[
-          { id: "design", label: "Design", icon: SlidersHorizontal },
-          { id: "dyno", label: "Virtual dyno", icon: Activity },
-          { id: "limits", label: "Limits", icon: ShieldCheck },
-          { id: "whatif", label: "What-if", icon: Split },
-          { id: "advisor", label: "Upgrade advisor", icon: Wand2 },
-          { id: "explore", label: "Explore (GPU)", icon: Grid3x3 },
-          { id: "test", label: "Test & calibrate", icon: FlaskRound },
-          { id: "history", label: "History", icon: GitBranch },
-          { id: "trust", label: "Trust", icon: Compass },
-        ]}
-        value={tab}
-        onChange={setTab}
-      />
       {tab === "design" && (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_460px]">
           <EngineEditor design={design} onChange={state.edit} group={group} setGroup={setGroup} level={level} setLevel={setLevel} />
           <div className="space-y-4">
-            <Engine3D geometry={geometry} status={result?.component_status ?? {}} />
-            {result && (
-              <div className="grid grid-cols-2 gap-3">
-                <Stat label="Peak power" value={fmt(result.summary.peak_power.nominal, 0)} unit="kW" sub={`${fmt(result.summary.peak_power.p05, 0)}–${fmt(result.summary.peak_power.p95, 0)} kW`} />
-                <Stat label="Peak torque" value={fmt(result.summary.peak_torque.nominal, 0)} unit="N·m" sub={`${fmt(result.summary.peak_torque.p05, 0)}–${fmt(result.summary.peak_torque.p95, 0)}`} />
-              </div>
-            )}
+            <Engine3D geometry={geometry} status={result?.component_status ?? {}} height={440} />
             {result && (
               <Card title="Component status" subtitle={state.dirty ? "From the last simulation; press Simulate to refresh after edits." : undefined}>
                 <ComponentStatusList result={result} />
@@ -112,6 +125,7 @@ export function EngineWorkspace({ state }: { state: ProjectState }) {
       {tab === "test" && <TestTab state={state} />}
       {tab === "history" && <HistoryPanel state={state} />}
       {tab === "trust" && needsResult(result && <TrustPanel trust={result.trust} compute={result.compute} />)}
+      </Container>
     </div>
   );
 }
