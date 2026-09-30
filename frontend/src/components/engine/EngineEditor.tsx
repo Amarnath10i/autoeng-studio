@@ -5,9 +5,10 @@ import { Segmented } from "@/components/ui";
 import type { Json } from "@/lib/types";
 import { GROUP_LABEL, LimitsEditor, ParamGroup, type Level } from "./ParamEditor";
 
-const GROUPS = ["engine", "operating", "breathing", "turbo", "intercooler", "combustion", "exhaust", "friction", "fuel", "conrod", "ambient", "targets", "limits"];
+const GROUPS = ["architecture", "engine", "operating", "breathing", "turbo", "intercooler", "combustion", "exhaust", "friction", "fuel", "conrod", "ambient", "targets", "limits"];
 
 const GROUP_BLURB: Record<string, string> = {
+  architecture: "Cylinder layout, bank angle, crankshaft and how air is forced in: the engine's basic configuration.",
   engine: "Bore, stroke, rods and compression: the geometry everything else scales from.",
   operating: "The rpm range the virtual dyno sweeps.",
   breathing: "How well the engine fills its cylinders across the rev range.",

@@ -237,6 +237,7 @@ def analyse(
         "firing_intervals_deg": gaps,
         "even_firing": even,
         "rod_ratio": lam,
+        "rpm": rpm,
         "unit_force_n": scale,
         "primary": primary,
         "secondary": secondary,

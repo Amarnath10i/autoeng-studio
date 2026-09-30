@@ -12,10 +12,11 @@ import type { Json, Limit, Param, ParamSpec, Source } from "@/lib/types";
 export type Level = "beginner" | "engineer" | "research";
 
 export const GROUP_LABEL: Record<string, string> = {
+  architecture: "Architecture",
   engine: "Engine geometry",
   operating: "Operating range",
   breathing: "Breathing",
-  turbo: "Turbocharger",
+  turbo: "Boost system",
   intercooler: "Intercooler",
   combustion: "Combustion",
   exhaust: "Exhaust",
@@ -43,8 +44,9 @@ function ParamRow({
   const help = level === "beginner" ? spec.beginner : spec.engineer;
 
   if (spec.kind === "choice") {
-    const options =
-      spec.choices_from === "fuels"
+    const options = spec.choices?.length
+      ? spec.choices
+      : spec.choices_from === "fuels"
         ? (meta?.fuels ?? []).map((f) => ({ id: f.id, label: f.name }))
         : materials
             .filter((m) => ["density", "youngs_modulus", "yield_strength", "ultimate_strength"].every((k) => k in m.properties))

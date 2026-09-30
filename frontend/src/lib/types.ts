@@ -58,6 +58,7 @@ export interface ParamSpec {
   kind: "param" | "int" | "choice";
   step: number | null;
   choices_from: string | null;
+  choices?: { id: string; label: string }[];
   optional: boolean;
 }
 
