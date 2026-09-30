@@ -41,6 +41,18 @@ Heywood 1988 ch. 13); BMEP = IMEP + PMEP − FMEP; torque T = BMEP · V_d / 4π;
 
 Peak cylinder pressure (order-of-magnitude): p_max = p_m · CR^n · r_p.
 
+Induction types (same model, different boost source):
+
+| Induction | Boost | Cost |
+|---|---|---|
+| Turbocharged | Wastegate target, or turbine-limited (above) | Exhaust back-pressure p₃ (pumping loss) |
+| Naturally aspirated | None: p_m = p_amb − Δp_intake, PR = 1, T₂ = T_amb | – |
+| Positive-displacement supercharger (roots, screw) | Target boost at every rpm | Drive power W_d = W_c / η_drive taken from the crank |
+| Centrifugal supercharger | b(N) = b_target · min(1, (N / N_max)²) | W_d = W_c / η_drive |
+
+Supercharger drive power is subtracted as a mean effective pressure, BMEP = IMEP + PMEP − FMEP − W_d·120/(V_d N),
+and reported as its own channel.
+
 Not modelled: knock and spark timing, compressor maps (surge, choke, shaft speed), transients and pulse energy,
 flow-dependent pressure losses, variable valve timing, exhaust gas recirculation.
 
@@ -54,6 +66,26 @@ flow-dependent pressure losses, variable valve timing, exhaust gas recirculation
   0.5 L out of plane.
 - Fatigue: modified Goodman on the tension–compression cycle with S_e = S_f' × Marin factor (compressive mean:
   n = S_e / σ_a). Skipped with "no data" when the material has no fatigue strength.
+
+## Engine layout, balance and firing: `structure.engine_balance` v1.0.0
+
+Layouts: inline (1–6, 8), V (2–16, any bank angle), W (8, 12, 16 as two narrow-angle VR banks set in a V) and flat
+(boxer up to 6 cylinders; 180° V with shared pins above). Each cylinder has a position along the crank x, a bank angle β
+and a crankpin angle φ₀.
+
+- Reciprocating force of one piston along its bore: F = m r ω² [cos ψ + λ cos 2ψ], ψ = θ + φ₀ − β, λ = r / L.
+- Engine shaking force and rocking couple: vector sums of F and x·F over all cylinders through one revolution, split
+  into first (primary) and second (secondary) order. A primary force or couple of constant magnitude that rotates with
+  the crank is reported as cancellable by counterweights.
+- V engines use split crankpins (offset = bank angle − 720°/n) so any bank angle fires evenly; a 90° V8 is cross-plane
+  (pins 0/90/270/180) or flat-plane (two inline fours).
+- Firing order: each crank throw can fire on either of its two top-dead-centres per 720° cycle; the choice is an optimal
+  assignment (Hungarian algorithm) to an evenly spaced grid, which gives the textbook sequences (even for I4/I6/V8, 270/450
+  for a 90° V-twin).
+- Package: block length, width and height from bore spacing (1.25 B), deck height and bank angle.
+
+Checked against textbook results: I4 secondary force 4λ·m r ω²; I6 and flat-12 fully balanced; cross-plane V8 with a
+rotating primary couple only; flat-plane V8 secondary force √2 · 4λ.
 
 ## Straight-line vehicle performance: `vehicle.longitudinal` v1.0.0
 
@@ -103,3 +135,34 @@ calibrated parameters' tolerances; parameter pairs with |ρ| > 0.95 are reported
 For a design, shared calibrations are weighted by w = exp(−½ Σ(Δdᵢ/sᵢ)²) over displacement (0.5 L), compression ratio
 (1.0), boost (0.5 bar), bore/stroke (0.15) and cylinder count (2), × 0.3 for a different fuel. A suggestion needs an
 effective sample size (Σw)²/Σw² ≥ 3; its spread combines between-engine variance and the fits' own variance.
+
+## Detailed body surface: `geometry.body_loft` v1.0.0
+
+The body is lofted from the sketches into a closed quad mesh (120 sections × 88 points around):
+
+- each section is the intersection of the roofline (side profile) with the front section, scaled by a plan-view taper
+  that rounds the bumper corners;
+- above the beltline the glasshouse leans in by the tumblehome factor; the roof and bonnet carry a slight crown;
+- the underbody sweeps up at the nose and into a rear diffuser;
+- skin points inside a circle of (wheel radius + arch gap) around each wheel are pushed in to the wheel-well wall, so the
+  tyre sits in a recess.
+
+Imported STL/OBJ meshes are converted to the car frame (units, Y-up or Z-up, nose detected from the lower bonnet end,
+lowest point on the road). Voxelisation casts rays along x, y and z and counts surface crossings (parity); a cell is solid
+when at least two directions agree, which tolerates small holes in imported meshes.
+
+## Virtual wind tunnel: `aero.lbm_d3q19_les` v1.0.0
+
+- Lattice Boltzmann, D3Q19 velocity set, BGK collision with a Smagorinsky sub-grid model:
+  τ = ½ (τ₀ + √(τ₀² + 18 √2 C_s² |Π_neq| / ρ)), C_s = 0.17.
+- Full-way bounce-back on the body and wheels; free-stream equilibrium at the inlet, top and sides; zero-gradient outlet;
+  moving road at the free-stream speed. Fluid slivers thinner than one cell between two walls are filled (they cannot be
+  resolved and would inject a spurious oscillating force).
+- Forces by momentum exchange on the links entering the body, in gauge form (the rest population is subtracted), excluding
+  the tyre contact rows; Cd and Cl are referenced to the voxelised frontal area and averaged over the last 30 % of the run.
+- Collision and streaming are fused into one CUDA kernel (one thread per cell) on NVIDIA GPUs; NumPy arrays otherwise.
+- Resolutions: draft (36 cells along the car, Re 1.2·10³), standard (72, Re 3·10³), fine (104, Re 5·10³).
+
+Honest scope: the lattice Reynolds number is 10³–10⁴, far below a real car (10⁶–10⁷), so boundary layers are thick and
+separation can differ. Absolute Cd is indicative; use the tunnel to compare shapes at one resolution and to see where the
+flow stagnates, separates and forms the wake.

@@ -23,8 +23,18 @@ market context, risks and priorities are in [docs/MARKET_ANALYSIS.md](docs/MARKE
   (GPU) ensemble.
 - Material studies: same geometry, different material for brake discs and connecting rods, including melting and
   softening checks.
+- Body design: sketch the side profile and front section, shape the 3D skin (beltline, tumblehome, corner rounding,
+  wheel wells), see it as a lofted quad mesh with a CAD-style wireframe, export STL, or import your own STL/OBJ body.
+- Virtual wind tunnel (GPU): full 3D lattice-Boltzmann flow around the lofted or imported body with a moving road;
+  drag and lift coefficients, drag at 100 km/h, 3D streamlines with tracer particles, surface pressure, centre-plane and
+  plan-view slices, convergence history, and one click to use the measured Cd in the vehicle model.
 
-**Engine lab (turbocharged SI engine)**
+**Engine lab (spark-ignition engines)**
+- Layouts: inline, V, W and flat (boxer) engines with any bank angle, split-pin, cross-plane and flat-plane cranks,
+  rendered in 3D with true piston kinematics.
+- Balance and firing: primary and secondary shaking forces and rocking couples, what counterweights can cancel, firing
+  intervals and order, and package size.
+- Induction: turbocharged, naturally aspirated, positive-displacement or centrifugal supercharged (with crank drive power).
 - Mean-value engine model with a turbine–compressor power balance (boost builds with rpm; wastegate or turbine-limited),
   combustion energy split, peak cylinder pressure, friction and pumping, fuel system and thermal loads.
 - Connecting-rod structural checks from geometry and material: Johnson/Euler buckling, tensile yield with an overspeed
@@ -151,7 +161,7 @@ Next, in priority order (see the market analysis for the reasoning):
 3. Electric powertrain: battery, inverter and motor models on the existing graph.
 4. OBD-II/CAN log import and ECU-log based calibration.
 5. Chassis: suspension, braking and cornering dynamics; lap-time simulation.
-6. Geometry: STEP import and simplified FEA for components.
+6. Geometry: STEP import, finer aerodynamic grids with wall models, and simplified FEA for components.
 7. Teams and organisations, billing, public build pages, surrogate models for in-browser (WebGPU) exploration.
 
 Results are engineering estimates from simplified models, not measurements or safety certification.
