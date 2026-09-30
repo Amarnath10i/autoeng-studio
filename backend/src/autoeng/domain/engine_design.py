@@ -21,9 +21,40 @@ def _spec(path, label, unit, lo, hi, beginner, engineer, **kw) -> ParamSpec:
     return ParamSpec(path, label, unit, lo, hi, path.split(".")[0], beginner, engineer, **kw)
 
 
+LAYOUT_CHOICES = (("inline", "Inline"), ("v", "V"), ("w", "W"), ("flat", "Flat (boxer)"))
+CRANK_CHOICES = (("standard", "Standard"), ("cross_plane", "Cross-plane (V8)"), ("flat_plane", "Flat-plane (V8)"))
+INDUCTION_CHOICES = (
+    ("turbo", "Turbocharged"),
+    ("naturally_aspirated", "Naturally aspirated"),
+    ("supercharger_pd", "Supercharged: positive displacement (roots / screw)"),
+    ("supercharger_centrifugal", "Supercharged: centrifugal"),
+)
+
 PARAM_SPECS: dict[str, ParamSpec] = {
     s.path: s
     for s in [
+        # --- Architecture
+        _spec("architecture.layout", "Cylinder layout", "-", 0, 0,
+              "How the cylinders are arranged: in a line, in a V, in a W or flat and opposed.",
+              "Sets cylinder positions and bank angles: drives balance, firing intervals and package size.",
+              kind="choice", choices=LAYOUT_CHOICES),
+        _spec("architecture.bank_angle", "Bank angle", "deg", 10, 180,
+              "The angle between the two rows of cylinders in a V or W engine.",
+              "Included angle between banks (V and W). Even firing for a V needs 720°/n multiples; 90° suits V8, 60° suits V6/V12.",
+              step=1),
+        _spec("architecture.crank", "Crankshaft", "-", 0, 0,
+              "How the crank pins are arranged (matters most for V8s).",
+              "Cross-plane V8: pins at 90° (smooth, secondary balanced). Flat-plane: pins at 180° (light, free secondary force).",
+              kind="choice", choices=CRANK_CHOICES),
+        _spec("architecture.induction", "Induction", "-", 0, 0,
+              "How air is pushed into the engine: naturally, by an exhaust turbo, or a belt-driven supercharger.",
+              "Turbo: exhaust-driven with wastegate. Positive-displacement supercharger: near-constant boost, crank-driven. "
+              "Centrifugal: boost rises with rpm². Naturally aspirated: no boost device.",
+              kind="choice", choices=INDUCTION_CHOICES),
+        _spec("architecture.supercharger_drive_efficiency", "Supercharger drive efficiency", "-", 0.5, 1.0,
+              "How much crank power the supercharger belt and gears waste.",
+              "Belt/gear drive efficiency; crank power taken = compressor power ÷ this. Used only for superchargers.",
+              step=0.01),
         # --- Engine geometry
         _spec("engine.cylinders", "Cylinders", "-", 1, 16,
               "How many cylinders the engine has.",
@@ -185,6 +216,20 @@ class _Section(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+def _default_param(value: float, ref: str) -> Param:
+    return Param(value=value, source="estimated", tol=0.0, ref=ref)
+
+
+class ArchitectureSection(_Section):
+    layout: str = "inline"
+    bank_angle: Param = Field(default_factory=lambda: _default_param(90.0, "Default bank angle"))
+    crank: str = "standard"
+    induction: str = "turbo"
+    supercharger_drive_efficiency: Param = Field(
+        default_factory=lambda: _default_param(0.9, "Typical belt drive efficiency (estimated)")
+    )
+
+
 class EngineSection(_Section):
     cylinders: int = Field(ge=1, le=16)
     bore: Param
@@ -285,6 +330,7 @@ class EngineDesign(BaseModel):
     schema_version: int = SCHEMA_VERSION
     name: str = Field(min_length=1, max_length=200)
     description: str = ""
+    architecture: ArchitectureSection = Field(default_factory=ArchitectureSection)
     engine: EngineSection
     operating: OperatingSection
     breathing: BreathingSection
@@ -320,6 +366,17 @@ class EngineDesign(BaseModel):
             errors.append("rpm sweep has more than 400 points; increase operating.rpm_step")
         if self.fuel.fuel_id not in FUELS:
             errors.append(f"fuel.fuel_id: unknown fuel '{self.fuel.fuel_id}'")
+        arch = self.architecture
+        for key, choices in (("layout", LAYOUT_CHOICES), ("crank", CRANK_CHOICES), ("induction", INDUCTION_CHOICES)):
+            if getattr(arch, key) not in {c for c, _ in choices}:
+                errors.append(f"architecture.{key}: unknown value '{getattr(arch, key)}'")
+        from autoeng.physics.balance import validate_layout
+
+        layout_error = validate_layout(arch.layout, self.engine.cylinders)
+        if layout_error:
+            errors.append(f"architecture.layout: {layout_error}")
+        if arch.crank != "standard" and not (arch.layout == "v" and self.engine.cylinders == 8):
+            errors.append("architecture.crank: flat-plane and cross-plane cranks apply to V8 engines only")
         c = self.conrod
         if 2 * c.flange_thickness.value >= c.section_height.value:
             errors.append("conrod: 2 × flange thickness must be less than section height")

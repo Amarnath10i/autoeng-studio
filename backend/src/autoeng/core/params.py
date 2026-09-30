@@ -99,6 +99,7 @@ class ParamSpec:
     choices_from: str | None = None  # e.g. "fuels" or "materials"
     optional: bool = False
     tags: tuple[str, ...] = field(default_factory=tuple)
+    choices: tuple[tuple[str, str], ...] = ()  # fixed (id, label) options for "choice" parameters
 
     def as_dict(self) -> dict:
         return {
@@ -115,6 +116,7 @@ class ParamSpec:
             "step": self.step,
             "choices_from": self.choices_from,
             "optional": self.optional,
+            "choices": [{"id": i, "label": label} for i, label in self.choices],
         }
 
 
