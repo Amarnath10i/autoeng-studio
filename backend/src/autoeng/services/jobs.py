@@ -35,7 +35,7 @@ from autoeng.settings import get_settings
 log = logging.getLogger(__name__)
 
 JOB_KINDS = ("simulate", "compare", "advise", "calibrate", "vehicle", "scenario", "weather_study", "sweep",
-             "material_study", "wind_tunnel")
+             "material_study", "wind_tunnel", "validation")
 SERVER = "server"
 
 
@@ -96,6 +96,10 @@ def _execute_platform(kind: str, payload: dict, materials: dict, samples: int, s
             samples=samples, seed=seed)
     if kind == "wind_tunnel":
         return wind_tunnel(payload)
+    if kind == "validation":
+        from autoeng.validation.cases import run_suite
+
+        return run_suite(include_heavy=bool(payload.get("include_heavy", True)))
     raise ValueError(f"Unknown job kind '{kind}'")
 
 

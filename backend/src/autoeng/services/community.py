@@ -54,7 +54,11 @@ def share(db: Session, user: User, project_id: str | None, design: EngineDesign,
     rec = CalibrationRecord(
         owner_id=user.id, project_id=project_id, descriptors=descriptors(design), parameters=params,
         quality={"torque_rmse": calibration["torque_rmse_after"], "points": len(calibration["curves"]["rpm"]),
-                 "kind": measurement_kind},
+                 "kind": measurement_kind,
+                 # Uncalibrated-model error on this real engine: the field-validation evidence.
+                 "torque_rmse_before": calibration.get("torque_rmse_before"),
+                 "mean_torque": (float(np.mean(calibration["curves"]["torque_measured"]))
+                                 if calibration["curves"].get("torque_measured") else None)},
     )
     db.add(rec)
     db.commit()

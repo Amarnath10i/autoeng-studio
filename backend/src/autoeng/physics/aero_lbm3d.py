@@ -94,14 +94,19 @@ def fill_slivers(solid: np.ndarray, passes: int = 8) -> np.ndarray:
     return s
 
 
-def voxelize(body: Body, cells_along: int) -> dict:
+# Tunnel size as multiples of the body: upstream run and total length (× length), width (× width), height (× height).
+DOMAIN = {"upstream": 0.9, "length": 3.4, "width": 2.8, "height": 2.6}
+
+
+def voxelize(body: Body, cells_along: int, domain: dict | None = None) -> dict:
     """Solid mask (nz, ny, nx) for the body and wheels inside a tunnel sized around the car."""
+    d = {**DOMAIN, **(domain or {})}
     L, Wd, H = body.length_mm / 1000, body.width_mm / 1000, body.height_mm / 1000
     dx = L / cells_along
-    nx = int(round(3.4 * cells_along))
-    ny = int(round(Wd * 2.8 / dx)) // 2 * 2
-    nz = int(round(H * 2.6 / dx))
-    x0 = 0.9 * L  # car nose position from the inlet
+    nx = int(round(d["length"] * cells_along))
+    ny = int(round(Wd * d["width"] / dx)) // 2 * 2
+    nz = int(round(H * d["height"] / dx))
+    x0 = d["upstream"] * L  # car nose position from the inlet
     xs = (np.arange(nx) + 0.5) * dx - x0
     ys = (np.arange(ny) + 0.5) * dx - ny * dx / 2
     zs = (np.arange(nz) + 0.5) * dx
@@ -179,14 +184,22 @@ def _cuda_kernel():
     return _KERNEL
 
 
-def run(g, resolution: str = "standard", progress=None, mesh: tuple[np.ndarray, dict] | None = None) -> dict:
-    """Run the tunnel on a body sketch `g`, or on an imported mesh (triangles, info) when given."""
-    if resolution not in RESOLUTIONS:
-        raise ValueError(f"resolution must be one of {', '.join(RESOLUTIONS)}")
-    cfg = RESOLUTIONS[resolution]
-    body = body_from_geometry(g, mesh)
+def run(g, resolution: str = "standard", progress=None, mesh: tuple[np.ndarray, dict] | None = None,
+        body: Body | None = None, config: dict | None = None, domain: dict | None = None) -> dict:
+    """Run the tunnel on a body sketch `g`, an imported mesh (triangles, info), or a prepared `body`.
+
+    `config` (cells, u, re, flow_throughs) and `domain` override the resolution preset and tunnel size;
+    the validation benchmarks use them to match an experiment's Reynolds number and blockage.
+    """
+    if config is None:
+        if resolution not in RESOLUTIONS:
+            raise ValueError(f"resolution must be one of {', '.join(RESOLUTIONS)}")
+        cfg = RESOLUTIONS[resolution]
+    else:
+        cfg, resolution = {**RESOLUTIONS["standard"], **config}, "custom"
+    body = body if body is not None else body_from_geometry(g, mesh)
     g = body  # carries the dimensions used below
-    vox = voxelize(body, cfg["cells"])
+    vox = voxelize(body, cfg["cells"], domain)
     nx, ny, nz = vox["nx"], vox["ny"], vox["nz"]
     n_cells = nx * ny * nz
     xp = compute.for_size(n_cells * 19)
@@ -197,7 +210,7 @@ def run(g, resolution: str = "standard", progress=None, mesh: tuple[np.ndarray, 
     U = float(cfg["u"])
     nu = U * cfg["cells"] / cfg["re"]
     tau0 = 3 * nu + 0.5
-    smag = 18 * 1.41421356 * 0.17**2
+    smag = 18 * 1.41421356 * cfg.get("cs", 0.17) ** 2  # Smagorinsky constant; 0 gives plain BGK (laminar flow)
     steps = int(cfg["flow_throughs"] * nx / U)
     avg_from = int(steps * 0.7)
 
