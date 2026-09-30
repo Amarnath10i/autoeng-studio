@@ -56,7 +56,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const onLogin = pathname === "/login";
-  const fullBleed = onLogin || pathname === "/";
+  // Every page draws its own hero band and content container.
+  const fullBleed = true;
 
   useEffect(() => {
     if (ready && !user && !onLogin && !error) router.replace("/login");

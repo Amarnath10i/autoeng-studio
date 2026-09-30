@@ -26,7 +26,7 @@ export function Button({
       disabled={props.disabled || loading}
       className={twMerge(
         clsx(
-          "inline-flex items-center justify-center gap-2 rounded-[2px] font-display font-medium uppercase tracking-[0.16em] transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40",
+          "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-[2px] font-display font-medium uppercase tracking-[0.16em] transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40",
           size === "sm" && "h-8 px-3 text-[11px]",
           size === "md" && "h-10 px-5 text-[12px]",
           size === "lg" && "h-12 px-8 text-[13px]",
