@@ -17,6 +17,8 @@ const emptyDraft = (): Draft => ({ name: "", category: "", condition: "", props:
 export default function MaterialsPage() {
   const { meta, materials, reloadMaterials } = useSession();
   const [draft, setDraft] = useState<Draft>(emptyDraft());
+  const [system, setSystem] = useState("all");
+  const [query, setQuery] = useState("");
   const act = useAsync();
   const props = meta?.material_properties ?? {};
 
@@ -49,6 +51,12 @@ export default function MaterialsPage() {
     });
 
   const custom = materials.filter((m) => m.custom).length;
+  const systems = meta?.material_systems ?? {};
+  const shown = materials.filter(
+    (m) =>
+      (system === "all" || (m.uses ?? []).includes(system) || (system === "custom" && m.custom)) &&
+      (!query || `${m.name} ${m.category} ${m.condition} ${m.notes}`.toLowerCase().includes(query.toLowerCase())),
+  );
   return (
     <div>
       <PageHero
@@ -59,8 +67,8 @@ export default function MaterialsPage() {
         <Figures
           items={[
             { label: "Materials", value: String(materials.length), sub: `${custom} of your own` },
-            { label: "Properties tracked", value: String(Object.keys(props).length), sub: "Mechanical, thermal, fatigue" },
-            { label: "Sources", value: "8", sub: "Measured to estimated, always labelled" },
+            { label: "Vehicle systems", value: String(Object.keys(systems).length), sub: "Engine to glazing, each material tagged" },
+            { label: "Properties tracked", value: String(Object.keys(props).length), sub: "Mechanical, thermal, friction" },
             { label: "Web research", value: "Cited", sub: "Reviewed before it enters the library" },
           ]}
         />
@@ -68,6 +76,24 @@ export default function MaterialsPage() {
       <Container className="space-y-12 py-12">
       <ErrorNote error={act.error} onClose={() => act.setError(null)} />
 
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          {[["all", "All"], ...Object.entries(systems), ["custom", "Your materials"]].map(([id, label]) => {
+            const n = id === "all" ? materials.length : id === "custom" ? custom : materials.filter((m) => (m.uses ?? []).includes(id)).length;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setSystem(id)}
+                aria-pressed={system === id}
+                className={`border px-3 py-1.5 text-xs transition-colors ${system === id ? "border-[var(--ink)] text-ink" : "border-line text-ink-2 hover:border-line-strong hover:text-ink"}`}
+              >
+                {label} <span className="ml-1 text-ink-3 tabular">{n}</span>
+              </button>
+            );
+          })}
+          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, grade, use…" className="ml-auto h-9 w-64" />
+        </div>
       <div className="overflow-x-auto border border-line bg-surface">
         <table className="w-full min-w-[1100px] text-sm tabular">
           <thead>
@@ -83,14 +109,15 @@ export default function MaterialsPage() {
             </tr>
           </thead>
           <tbody>
-            {materials.map((m) => (
+            {shown.map((m) => (
               <tr key={m.id} className="border-b border-line align-top transition-colors hover:bg-surface-2">
-                <td className="px-4 py-3">
+                <td className="min-w-[19rem] px-4 py-3">
                   <div className="display text-[13px]">{m.name}</div>
-                  <div className="text-xs text-ink-3">
-                    {m.condition}
+                  <div className="text-xs text-ink-3" title={m.notes || undefined}>
+                    {m.category} · {m.condition}
                     {m.custom && " · custom"}
                   </div>
+                  {m.notes && <div className="mt-1 max-w-[19rem] text-[11px] leading-snug text-ink-3">{m.notes}</div>}
                 </td>
                 {Object.keys(props).map((k) => {
                   const p = m.properties[k];
@@ -123,6 +150,8 @@ export default function MaterialsPage() {
             ))}
           </tbody>
         </table>
+      </div>
+      {shown.length === 0 && <p className="text-sm text-ink-3">No materials match.</p>}
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">

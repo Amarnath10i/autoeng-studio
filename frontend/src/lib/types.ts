@@ -112,6 +112,14 @@ export interface Scenario {
   duration_s?: number;
 }
 
+export interface LibraryItem {
+  id: string;
+  name: string;
+  group?: string;
+  summary?: string;
+  description?: string;
+}
+
 export interface Meta {
   params: ParamSpec[];
   channels: Channel[];
@@ -124,8 +132,12 @@ export interface Meta {
   calibratable: string[];
   material_properties: Record<string, { label: string; unit: string }>;
   catalog: CatalogType[];
-  engine_presets: { id: string; name: string }[];
-  vehicle_templates: { id: string; name: string }[];
+  engine_presets: LibraryItem[];
+  vehicle_templates: LibraryItem[];
+  engine_preset_groups?: string[];
+  vehicle_template_groups?: string[];
+  body_styles?: { id: string; name: string; geometry: Json }[];
+  material_systems?: Record<string, string>;
   limits: { max_samples: number; default_samples: number };
   sweepable: string[];
   scenarios: Scenario[];
@@ -142,6 +154,7 @@ export interface Material {
   condition: string;
   properties: Record<string, Param>;
   processes: string[];
+  uses?: string[];
   notes: string;
   custom: boolean;
 }

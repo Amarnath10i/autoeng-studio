@@ -8,6 +8,7 @@ import { HistoryPanel, TrustPanel } from "@/components/project/Panels";
 import type { ProjectState } from "@/components/project/useProject";
 import { Button, Card, Empty, ErrorNote, Input, Spinner, Tabs, useAsync } from "@/components/ui";
 import { api, runJob } from "@/lib/api";
+import { normalizeLayout } from "@/lib/engineLayout";
 import { fmt, kwToHp } from "@/lib/format";
 import type { EngineResult, Param } from "@/lib/types";
 import { AdvisorTab, LimitsTab, WhatIfTab } from "./AnalyzeTabs";
@@ -113,10 +114,11 @@ export function EngineWorkspace({ state }: { state: ProjectState }) {
       <ErrorNote error={sim.error} onClose={() => sim.setError(null)} />
       {tab === "design" && (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_460px]">
-          <EngineEditor design={design} onChange={state.edit} group={group} setGroup={setGroup} level={level} setLevel={setLevel} />
+          <EngineEditor design={design} onChange={(d) => state.edit(normalizeLayout(design, d))} group={group} setGroup={setGroup} level={level} setLevel={setLevel} />
           <div className="space-y-4">
             <Engine3D geometry={geometry} layout={layout?.cylinders} induction={arch.induction} status={result?.component_status ?? {}} height={440} />
-            {layout && (
+            {layoutError && <ErrorNote error={layoutError} />}
+            {layout && !layoutError && (
               <p className="text-xs text-ink-3">
                 {layout.summary.join(" · ")} · {layout.even_firing ? "even firing" : "uneven firing"}
               </p>

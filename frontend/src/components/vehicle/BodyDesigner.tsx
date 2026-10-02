@@ -243,7 +243,7 @@ const DIMENSIONS: [keyof BodyGeometry, string][] = [
 ];
 
 export function BodyDesigner({ design, onChange }: { design: VehicleDesign; onChange: (d: VehicleDesign) => void }) {
-  const { materials } = useSession();
+  const { materials, meta } = useSession();
   const bodyId = Object.entries(design.components).find(([, c]) => c.type === "body")?.[0];
   const body = bodyId ? design.components[bodyId] : null;
   const stored = (body?.params as Json | null)?.geometry as BodyGeometry | undefined;
@@ -406,6 +406,29 @@ export function BodyDesigner({ design, onChange }: { design: VehicleDesign; onCh
               <Button onClick={() => setShowSearch((v) => !v)}>
                 <Globe className="size-3.5" /> {showSearch ? "Close search" : "Find a material on the web"}
               </Button>
+              <Field label="Start from a body style">
+                <Select
+                  value=""
+                  onChange={(e) => {
+                    const style = meta?.body_styles?.find((b) => b.id === e.target.value);
+                    if (style)
+                      setG({
+                        ...(style.geometry as unknown as BodyGeometry),
+                        panel_material_id: g.panel_material_id,
+                        panel_thickness_mm: g.panel_thickness_mm,
+                        applied_panel_mass_kg: g.applied_panel_mass_kg,
+                      });
+                  }}
+                  className="w-56"
+                >
+                  <option value="">Choose a style…</option>
+                  {(meta?.body_styles ?? []).map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
               <Button variant="ghost" onClick={() => api<BodyGeometry>("/api/v1/body/default").then((d) => setG({ ...d, applied_panel_mass_kg: g.applied_panel_mass_kg }))}>
                 <RotateCcw className="size-3.5" /> Reset sketch
               </Button>

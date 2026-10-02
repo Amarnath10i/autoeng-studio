@@ -5,11 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Backdrop, CoupeLineArt, EngineLineArt } from "@/components/brand";
-import { Button, Empty, ErrorNote, Field, Input, SectionTitle, Segmented, Select, Spinner, useAsync } from "@/components/ui";
+import { Button, Empty, ErrorNote, Field, Input, SectionTitle, Segmented, Spinner, useAsync } from "@/components/ui";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { useSession } from "@/lib/session";
-import type { Project } from "@/lib/types";
+import type { LibraryItem, Project } from "@/lib/types";
 
 function Figure({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -17,6 +17,40 @@ function Figure({ label, value, sub }: { label: string; value: string; sub?: str
       <div className="eyebrow">{label}</div>
       <div className="mt-2 text-3xl font-extralight tracking-tight text-ink">{value}</div>
       {sub && <div className="mt-1 text-xs text-ink-3">{sub}</div>}
+    </div>
+  );
+}
+
+/** The template library, grouped, as selectable cards. */
+function Catalogue({ items, groups, value, onChange }: { items: LibraryItem[]; groups?: string[]; value: string; onChange: (id: string) => void }) {
+  const order = groups ?? [...new Set(items.map((i) => i.group ?? "Other"))];
+  return (
+    <div className="space-y-8">
+      {order.map((g) => {
+        const inGroup = items.filter((i) => (i.group ?? "Other") === g);
+        if (!inGroup.length) return null;
+        return (
+          <div key={g}>
+            <div className="eyebrow mb-3">{g}</div>
+            <div className="grid gap-px border border-line bg-[var(--line)] sm:grid-cols-2 xl:grid-cols-4">
+              {inGroup.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => onChange(t.id)}
+                  aria-pressed={value === t.id}
+                  className={`group relative bg-surface p-5 text-left transition-colors hover:bg-surface-2 ${value === t.id ? "bg-surface-2" : ""}`}
+                >
+                  {value === t.id && <span className="absolute inset-y-0 left-0 w-0.5 bg-[var(--ink)]" aria-hidden />}
+                  <div className="display text-[15px] leading-snug text-ink">{t.name.replace(/^Generic /, "")}</div>
+                  {t.summary && <div className="mt-1.5 text-xs tabular text-ink-2">{t.summary}</div>}
+                  {t.description && <p className="mt-3 text-xs leading-relaxed text-ink-3">{t.description}</p>}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -153,7 +187,7 @@ export default function Dashboard() {
               e.preventDefault();
               createProject(kind, chosen, name);
             }}
-            className="grid items-end gap-6 border border-line bg-surface p-6 md:grid-cols-[auto_1fr_1fr_auto]"
+            className="grid items-end gap-6 border border-line bg-surface p-6 md:grid-cols-[auto_1fr_auto]"
           >
             <Field label="Design">
               <Segmented
@@ -168,15 +202,6 @@ export default function Dashboard() {
                 }}
               />
             </Field>
-            <Field label="Start from">
-              <Select value={chosen} onChange={(e) => setTemplate(e.target.value)}>
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
             <Field label="Project name">
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Track build 2027" />
             </Field>
@@ -184,6 +209,7 @@ export default function Dashboard() {
               Create <ArrowRight className="size-4" aria-hidden />
             </Button>
           </form>
+          <Catalogue items={templates} groups={kind === "vehicle" ? meta?.vehicle_template_groups : meta?.engine_preset_groups} value={chosen} onChange={setTemplate} />
           <p className="text-xs text-ink-3">
             Templates are illustrative, generic designs. Every value is labelled as an estimate until you replace it with
             measured or manufacturer data.
