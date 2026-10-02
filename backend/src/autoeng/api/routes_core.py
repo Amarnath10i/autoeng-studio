@@ -25,16 +25,18 @@ from autoeng.domain.components import CHANNELS, COMPONENTS, EDGES
 from autoeng.domain.engine_design import PARAM_SPECS, EngineDesign
 from autoeng.domain.fuels import FUELS
 from autoeng.domain.materials import LIBRARY, PROPERTY_UNITS, Material
+from autoeng.domain.materials_library import SYSTEMS
 from autoeng.physics import aero_lbm3d
 from autoeng.platform.body import BodyGeometry, default_geometry
 from autoeng.platform.body import analyse as analyse_body
+from autoeng.platform.body_styles import styles_list
 from autoeng.platform.catalog import catalog_dict
 from autoeng.platform.scenarios import BUILTIN, Scenario
 from autoeng.platform.simulate_scenario import run_scenario
 from autoeng.platform.simulate_vehicle import simulate_vehicle
-from autoeng.platform.templates import VEHICLE_TEMPLATES
+from autoeng.platform.templates import TEMPLATE_GROUPS, VEHICLE_TEMPLATES, template_summaries
 from autoeng.platform.vehicle import VehicleDesign
-from autoeng.presets import PRESETS
+from autoeng.presets import PRESET_GROUPS, PRESETS, preset_summaries
 from autoeng.services import auth, community, research
 from autoeng.settings import get_settings
 
@@ -64,8 +66,12 @@ def meta() -> dict:
         "calibratable": CALIBRATABLE,
         "material_properties": {k: {"label": v[0], "unit": v[1]} for k, v in PROPERTY_UNITS.items()},
         "catalog": catalog_dict(),
-        "engine_presets": [{"id": k, "name": v[0]} for k, v in PRESETS.items()],
-        "vehicle_templates": [{"id": k, "name": v[0]} for k, v in VEHICLE_TEMPLATES.items()],
+        "engine_presets": preset_summaries(),
+        "engine_preset_groups": PRESET_GROUPS,
+        "vehicle_templates": template_summaries(),
+        "vehicle_template_groups": TEMPLATE_GROUPS,
+        "body_styles": styles_list(),
+        "material_systems": SYSTEMS,
         "limits": {"max_samples": MAX_SAMPLES, "default_samples": DEFAULT_SAMPLES},
         "sweepable": SWEEPABLE,
         "scenarios": [{"id": k, **sc.model_dump(), "duration_s": sc.duration_s} for k, sc in BUILTIN.items()],

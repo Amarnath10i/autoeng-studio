@@ -13,7 +13,7 @@ from dataclasses import dataclass
 import numpy as np
 
 MODEL_ID = "vehicle.longitudinal"
-MODEL_VERSION = "1.0.0"
+MODEL_VERSION = "1.1.0"
 FIDELITY_LEVEL = 1
 G = 9.80665
 QUARTER_MILE_M = 402.336
@@ -22,7 +22,9 @@ ASSUMPTIONS = [
     "Full-throttle run on a flat, dry road with the engine's full-load torque curve (no transient turbo lag).",
     "Launch: the clutch slips with the engine held at the launch rpm until the wheels catch up, with full-load "
     "(fully spooled) torque at that rpm; clutch slip energy and heat are not computed.",
-    "Rotating inertia via the mass factor γ = 1.04 + 0.0025·(overall ratio)² (Wong, Theory of Ground Vehicles).",
+    "Rotating inertia via the mass factor γ = 1 + (4·I_wheel + I_engine·ξ²·η) / (m·r²), with ξ the overall ratio. "
+    "Defaults when not given: I_engine ≈ 0.10 + 0.05·V_d[L] kg·m² (engine, flywheel and clutch) and "
+    "I_wheel ≈ 1.1·(r / 0.32 m)² kg·m² per wheel (tyre, rim, disc and hub).",
     "Upshift when the next gear gives more wheel force, or at redline; torque is zero during the shift time.",
     "Traction limit μ × driven-axle load, with quasi-static longitudinal weight transfer m·a·h/L; "
     "no tyre slip curve, suspension dynamics or aerodynamic downforce.",
@@ -39,6 +41,8 @@ class VehicleInputs:
     rpm_launch: np.ndarray | float  # engine rpm held while the clutch slips in first gear
     rpm_min: float  # lowest usable engine rpm (bottom of the torque curve)
     rpm_redline: float
+    engine_inertia: np.ndarray  # kg·m², engine + flywheel + clutch
+    wheel_inertia: np.ndarray  # kg·m² per wheel
     ratios: list[float]
     gearbox_eff: np.ndarray
     final_ratio: np.ndarray
@@ -67,8 +71,19 @@ def _interp_rows(x: np.ndarray, xp: np.ndarray, fp: np.ndarray) -> np.ndarray:
     return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
 
 
-def _mass_factor(overall_ratio):
-    return 1.04 + 0.0025 * overall_ratio**2
+def default_engine_inertia(displacement_l):
+    """Engine + flywheel + clutch rotating inertia, kg·m² (typical of modern passenger-car engines)."""
+    return 0.10 + 0.05 * displacement_l
+
+
+def default_wheel_inertia(radius_m):
+    """One road wheel with tyre, brake disc and hub, kg·m²."""
+    return 1.1 * (radius_m / 0.32) ** 2
+
+
+def mass_factor(overall_ratio, mass, wheel_radius, engine_inertia, wheel_inertia, drive_eff):
+    """γ: effective mass / mass, adding the wheels and the engine reflected through the overall ratio."""
+    return 1.0 + (4.0 * wheel_inertia + engine_inertia * overall_ratio**2 * drive_eff) / (mass * wheel_radius**2)
 
 
 def _engine_force(v: np.ndarray, gear: int, inp: VehicleInputs, allow_slip: bool):
@@ -123,7 +138,8 @@ def run(inp: VehicleInputs, dt: float = 0.01, t_max: float = 60.0, trace_every: 
         f_engine = forces[gear, np.arange(s)]
         f_engine = np.where(np.isfinite(f_engine), f_engine, 0.0)
         overall = np.asarray(inp.ratios)[gear] * inp.final_ratio
-        gamma = _mass_factor(overall)
+        gamma = mass_factor(overall, inp.mass, inp.wheel_radius, inp.engine_inertia, inp.wheel_inertia,
+                            inp.gearbox_eff * inp.final_eff)
         resist = _resistance(v, inp)
         f_trac_max = _traction_limit(resist, gamma, inp)
         limited = f_engine > f_trac_max

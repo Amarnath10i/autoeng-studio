@@ -36,6 +36,11 @@ def _dist(nominal: float, samples: np.ndarray) -> dict:
     return {"nominal": float(nominal), "p05": float(p05), "p50": float(p50), "p95": float(p95)}
 
 
+def _displacement_l(engine) -> float:
+    e = engine.engine
+    return e.cylinders * np.pi / 4 * (e.bore.value / 1000) ** 2 * (e.stroke.value / 1000) * 1000
+
+
 def _inputs(v: VehicleDesign, chain_ids: dict, rpm, torque, engine, n: int, seed: int) -> longitudinal.VehicleInputs:
     gb, fd, wt, body, cl = (v.components[chain_ids[k]].params
                             for k in ("gearbox", "final_drive", "wheel_tire", "body", "clutch"))
@@ -51,6 +56,10 @@ def _inputs(v: VehicleDesign, chain_ids: dict, rpm, torque, engine, n: int, seed
                     if cl.get("launch_rpm") else float(engine.operating.rpm_min)),
         rpm_min=float(engine.operating.rpm_min),
         rpm_redline=float(engine.operating.rpm_max),
+        engine_inertia=(d("clutch", cl, "rotating_inertia") if cl.get("rotating_inertia")
+                        else np.full(n, longitudinal.default_engine_inertia(_displacement_l(engine)))),
+        wheel_inertia=(d("wheel_tire", wt, "wheel_inertia") if wt.get("wheel_inertia")
+                       else longitudinal.default_wheel_inertia(d("wheel_tire", wt, "rolling_radius"))),
         ratios=list(gb["ratios"]),
         gearbox_eff=d("gearbox", gb, "efficiency"),
         final_ratio=d("final_drive", fd, "ratio"),

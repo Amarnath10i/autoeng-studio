@@ -23,7 +23,7 @@ import numpy as np
 from autoeng.compute import ns, to_numpy
 
 MODEL_ID = "thermal.duty_cycle"
-MODEL_VERSION = "1.0.0"
+MODEL_VERSION = "1.1.0"
 FIDELITY_LEVEL = 1
 G = 9.80665
 SIGMA = 5.670374419e-8
@@ -61,6 +61,8 @@ class DutyInputs:
     rpm_redline: float
     overall_ratio: np.ndarray  # (G, E)
     drive_eff: np.ndarray
+    engine_inertia: np.ndarray  # kg·m²
+    wheel_inertia: np.ndarray  # kg·m² per wheel
     wheel_radius: np.ndarray
     mass: np.ndarray
     cd_area: np.ndarray
@@ -161,7 +163,8 @@ def run(inp: DutyInputs, schedule: dict, dt: float, v0: float, cold_start: bool,
         f_avail = inp.force_table[:, rows, k0] * (1 - frac) + inp.force_table[:, rows, k0 + 1] * frac  # (G, E)
         f_avail = xp.where(f_avail > INFEASIBLE / 2, f_avail, -xp.inf)
 
-        gamma = 1.04 + 0.0025 * inp.overall_ratio[gear, rows] ** 2
+        gamma = 1.0 + (4.0 * inp.wheel_inertia + inp.engine_inertia * inp.overall_ratio[gear, rows] ** 2 * inp.drive_eff) / (
+            inp.mass * inp.wheel_radius**2)
         f_need = gamma * inp.mass * a_req + resist + f_grade
         can = f_avail >= f_need[None, :]
         highest_ok = xp.max(xp.where(can, g_idx, -1), axis=0)
@@ -174,7 +177,8 @@ def run(inp: DutyInputs, schedule: dict, dt: float, v0: float, cold_start: bool,
         f_trac = inp.mu * inp.mass * G * cos_g * inp.driven_share
         f_drive = xp.where(f_need > 0, xp.minimum(xp.minimum(f_need, xp.maximum(f_max_gear, 0.0)), f_trac), 0.0)
         f_brake = xp.where(f_need < 0, xp.minimum(-f_need, inp.mu * inp.mass * G * cos_g), 0.0)
-        gamma = 1.04 + 0.0025 * inp.overall_ratio[gear, rows] ** 2
+        gamma = 1.0 + (4.0 * inp.wheel_inertia + inp.engine_inertia * inp.overall_ratio[gear, rows] ** 2 * inp.drive_eff) / (
+            inp.mass * inp.wheel_radius**2)
         a = (f_drive - f_brake - resist - f_grade) / (gamma * inp.mass)
         a = xp.where((v <= 0.0) & (a < 0.0), 0.0, a)
 

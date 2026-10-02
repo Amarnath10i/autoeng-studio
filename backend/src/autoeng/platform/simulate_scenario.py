@@ -19,7 +19,7 @@ from autoeng.analysis.sampling import _stream
 from autoeng.analysis.simulate import DISCLAIMER, run_raw
 from autoeng.core.params import Param
 from autoeng.domain.materials import Material
-from autoeng.physics import duty_cycle
+from autoeng.physics import duty_cycle, longitudinal
 from autoeng.physics.gas import R_AIR
 from autoeng.physics.longitudinal import _interp_rows
 from autoeng.platform.catalog import EngineParams
@@ -250,6 +250,10 @@ def _run(v, engine, ids, weathers, points, schedule, scenario, materials, n, see
         friction_power=friction_power, indicated_eff=indicated_eff,
         coolant_fraction=raw.sampled.engine.coolant_heat_fraction.ravel(),
         rpm_min=rpm_min, rpm_redline=redline, overall_ratio=overall, drive_eff=drive_eff, wheel_radius=radius,
+        engine_inertia=(draw("clutch", "rotating_inertia") if cl.get("rotating_inertia")
+                        else longitudinal.default_engine_inertia(vd.ravel() * 1000)),
+        wheel_inertia=(draw("wheel_tire", "wheel_inertia") if wt.get("wheel_inertia")
+                       else longitudinal.default_wheel_inertia(radius)),
         mass=draw("body", "mass"), cd_area=draw("body", "drag_coefficient") * draw("body", "frontal_area"),
         crr=draw("wheel_tire", "rolling_resistance"),
         mu=draw("wheel_tire", "peak_friction") * per_point([w.friction_factor for w in weathers]),

@@ -91,7 +91,7 @@ rotating primary couple only; flat-plane V8 secondary force √2 · 4λ.
 
 - Wheel force per gear: F = T(N) · i_g · i_fd · η / r_w, with N from road speed; launch holds the engine at the launch rpm
   while the clutch slips.
-- Resistance: ½ ρ C_d A v² + C_rr m g. Rotating inertia: γ = 1.04 + 0.0025 (i_g i_fd)² (Wong).
+- Resistance: ½ ρ C_d A v² + C_rr m g. Rotating inertia (v1.1): γ = 1 + (4 I_wheel + I_engine ξ² η) / (m r²), with ξ the overall ratio; defaults I_engine ≈ 0.10 + 0.05 V_d[L] kg·m² and I_wheel ≈ 1.1 (r / 0.32 m)² kg·m², overridable on the clutch and tyre components. (v1.0 used Wong's γ = 1.04 + 0.0025 ξ², which overstates inertia with the tall first gears of modern 7- and 8-speed gearboxes.)
 - Traction: μ × driven-axle load with longitudinal weight transfer m a h / L (closed form for front and rear drive).
 - Optimal upshifts with a torque-free shift time; top speed where no gear can overcome resistance.
 

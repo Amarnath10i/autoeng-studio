@@ -29,6 +29,7 @@ PROPERTY_UNITS: dict[str, tuple[str, str]] = {
     "cte": ("Coefficient of thermal expansion", "µm/(m·K)"),
     "max_service_temp": ("Max service temperature", "°C"),
     "solidus_temp": ("Solidus (melting onset)", "°C"),
+    "friction_coefficient": ("Friction coefficient (against its usual partner)", "-"),
 }
 
 
@@ -39,6 +40,7 @@ class Material(BaseModel):
     condition: str = ""
     properties: dict[str, Param] = Field(default_factory=dict)
     processes: list[str] = Field(default_factory=list)
+    uses: list[str] = Field(default_factory=list)  # vehicle systems (see materials_library.SYSTEMS)
     notes: str = ""
     custom: bool = False
 
@@ -55,6 +57,7 @@ LIBRARY: dict[str, Material] = {
     for m in [
         Material(
             id="aisi_4340_normalized",
+            uses=["engine", "transmission", "suspension"],
             name="AISI 4340 steel",
             category="Steel",
             condition="Normalized",
@@ -74,6 +77,7 @@ LIBRARY: dict[str, Material] = {
         ),
         Material(
             id="ti_6al_4v_annealed",
+            uses=["engine", "suspension", "fasteners", "exhaust"],
             name="Ti-6Al-4V (Grade 5)",
             category="Titanium",
             condition="Annealed",
@@ -93,6 +97,7 @@ LIBRARY: dict[str, Material] = {
         ),
         Material(
             id="al_7075_t6",
+            uses=["engine", "suspension", "wheels"],
             name="Aluminium 7075",
             category="Aluminium",
             condition="T6",
@@ -113,6 +118,7 @@ LIBRARY: dict[str, Material] = {
         ),
         Material(
             id="al_2618_t61",
+            uses=["engine", "turbo"],
             name="Aluminium 2618",
             category="Aluminium",
             condition="T61",
@@ -131,6 +137,7 @@ LIBRARY: dict[str, Material] = {
         ),
         Material(
             id="grey_cast_iron",
+            uses=["brakes", "engine"],
             name="Grey cast iron",
             category="Cast iron",
             condition="Brake-disc grade (typical)",
@@ -148,6 +155,7 @@ LIBRARY: dict[str, Material] = {
         ),
         Material(
             id="steel_dc04",
+            uses=["body"],
             name="Mild steel sheet DC04",
             category="Steel",
             condition="Cold-rolled deep-drawing sheet (EN 10130)",
@@ -162,6 +170,7 @@ LIBRARY: dict[str, Material] = {
         ),
         Material(
             id="al_6016_t4",
+            uses=["body"],
             name="Aluminium 6016",
             category="Aluminium",
             condition="T4 automotive body sheet",
@@ -176,3 +185,13 @@ LIBRARY: dict[str, Material] = {
         ),
     ]
 }
+
+
+def _extended() -> None:
+    from autoeng.domain.materials_library import EXTRA
+
+    for spec in EXTRA:
+        LIBRARY[spec["id"]] = Material.model_validate(spec)
+
+
+_extended()

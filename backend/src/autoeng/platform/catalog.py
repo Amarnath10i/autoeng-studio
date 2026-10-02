@@ -65,6 +65,7 @@ class ClutchParams(_Params):
     torque_capacity: Param  # N·m
     launch_rpm: Param | None = None  # rpm held while the clutch slips at launch; default: bottom of the engine sweep
     mass: Param | None = None  # kg
+    rotating_inertia: Param | None = None  # kg·m², engine + flywheel + clutch; default from displacement
 
 
 class GearboxParams(_Params):
@@ -92,6 +93,7 @@ class WheelTireParams(_Params):
     rolling_resistance: Param  # Crr, -
     peak_friction: Param  # μ, dry road
     driven_axle: str = Field(pattern="^(front|rear|all)$")
+    wheel_inertia: Param | None = None  # kg·m² per wheel (tyre, rim, disc, hub); default from rolling radius
 
 
 class BodyParams(_Params):
