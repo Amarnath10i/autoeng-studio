@@ -6,7 +6,7 @@ import { Container, Figures, PageHero } from "@/components/layout";
 import { ComputePicker } from "@/components/project/ProjectBar";
 import { Button, Card, Empty, ErrorNote, Note, SectionTitle, Segmented, Spinner, useAsync } from "@/components/ui";
 import { api, waitForJob } from "@/lib/api";
-import { fmt } from "@/lib/format";
+import { computeLabel, fmt } from "@/lib/format";
 
 interface Row {
   label: string;
@@ -235,7 +235,7 @@ export default function ValidationPage() {
               onChange={setShow}
             />
             <span className="text-xs text-ink-3">
-              {report && `Generated ${new Date(report.generated_at).toLocaleString()} on ${report.compute.device}`}
+              {report && `Generated ${new Date(report.generated_at).toLocaleString()} on the ${computeLabel(report.compute)}`}
             </span>
           </div>
         )}

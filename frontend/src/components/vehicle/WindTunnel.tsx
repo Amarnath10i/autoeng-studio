@@ -11,7 +11,7 @@ import { Figures } from "@/components/layout";
 import { ComputePicker } from "@/components/project/ProjectBar";
 import { Button, Card, ErrorNote, Note, Segmented, Spinner, useAsync } from "@/components/ui";
 import { api, waitForJob } from "@/lib/api";
-import { fmt } from "@/lib/format";
+import { computeLabel, fmt } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import type { Json, VehicleDesign } from "@/lib/types";
 import { type BodyGeometry, Orbit } from "./BodyDesigner";
@@ -413,7 +413,7 @@ export function WindTunnel({
                 label: "Solve",
                 value: fmt(res.seconds, 0),
                 unit: "s",
-                sub: `${fmt(res.grid.cells / 1e6, 2)} M cells · ${res.grid.steps} steps · ${res.compute.device}`,
+                sub: `${fmt(res.grid.cells / 1e6, 2)} M cells · ${res.grid.steps} steps · ${computeLabel(res.compute)}`,
               },
             ]}
           />

@@ -136,7 +136,7 @@ Frontend: `NEXT_PUBLIC_API_URL` (default `http://localhost:8000`).
    be reachable from the worker (deploy it, or expose a local server through a tunnel).
 3. Choose the worker in any **Compute** selector (simulate, sweeps, scenarios, studies).
 
-Measured on an RTX 3050 laptop GPU: a 20 × 15 design sweep with 200 samples per point (60 000 engine evaluations) runs in
+Measured on a laptop GPU: a 20 × 15 design sweep with 200 samples per point (60 000 engine evaluations) runs in
 about 19 s versus about 190 s on the CPU; a weather study of 24 000 vehicle simulations through a 24-minute mountain pass
 runs in about 58 s. Small runs stay on the CPU, where GPU launch overhead would dominate.
 

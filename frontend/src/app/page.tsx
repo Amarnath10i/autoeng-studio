@@ -98,7 +98,7 @@ export default function Dashboard() {
           <Figure
             label="Compute"
             value={health?.compute.gpu_available ? "GPU" : "CPU"}
-            sub={health?.compute.gpu_device ?? "Pair your own GPU under Compute"}
+            sub={health?.compute.gpu_available ? "Server GPU ready" : "Pair your own GPU under Compute"}
           />
           <Figure label="Physics models" value="4" sub="Engine · structure · vehicle · thermal" />
           <Figure label="Materials" value={String(materials.length)} sub="Each value with its source" />

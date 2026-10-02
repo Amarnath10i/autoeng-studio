@@ -4,7 +4,7 @@ import { GitBranch, GitCompare, GitMerge, History as HistoryIcon, RotateCcw } fr
 import { useState } from "react";
 import { Button, Card, ErrorNote, Input, Note, Select, SourceBadge, StatusBadge, useAsync } from "@/components/ui";
 import { api } from "@/lib/api";
-import { fmt, num, pct, SOURCE_LABEL, timeAgo } from "@/lib/format";
+import { computeLabel, fmt, num, pct, SOURCE_LABEL, timeAgo } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import type { LimitResult, Source, Trust, Version } from "@/lib/types";
 import type { ProjectState } from "./useProject";
@@ -301,7 +301,7 @@ export function TrustPanel({ trust, compute }: { trust: Trust; compute?: { backe
           {compute && (
             <div>
               <div className="text-xs font-medium text-ink-2">Computed on</div>
-              <p className="mt-1">{compute.device} ({compute.backend})</p>
+              <p className="mt-1">{computeLabel(compute)} ({compute.backend === "cupy" ? "CUDA" : "NumPy"})</p>
             </div>
           )}
           {trust.inputs_by_source && (

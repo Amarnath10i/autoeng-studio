@@ -92,7 +92,7 @@ export default function WorkersPage() {
             {
               label: "This server",
               value: health?.compute.gpu_available ? "GPU" : "CPU",
-              sub: health?.compute.gpu_device ?? "NumPy on the CPU",
+              sub: health?.compute.gpu_available ? "CUDA on the server" : "NumPy on the CPU",
             },
             { label: "Your workers", value: String(workers?.length ?? 0), sub: `${online} online now` },
             { label: "Jobs completed", value: String(done), sub: `${jobs.length} in the recent ledger` },
@@ -132,7 +132,7 @@ export default function WorkersPage() {
                     </div>
                     <div className="mt-4 flex items-center gap-3 text-sm text-ink-2">
                       <Cpu className="size-4 text-ink-3" strokeWidth={1.5} aria-hidden />
-                      {w.paired ? String(w.device?.gpu ?? "CPU only") : "—"}
+                      {w.paired ? (w.device?.gpu ? "GPU" : "CPU only") : "—"}
                     </div>
                     <div className="mt-1 text-xs text-ink-3">
                       {w.paired ? `${String(w.device?.host ?? "")} · ${w.last_seen_at ? `seen ${timeAgo(w.last_seen_at)}` : "never seen"}` : "Run the pairing command on the machine"}
@@ -171,7 +171,7 @@ export default function WorkersPage() {
                         </td>
                         <td className="px-5 py-3 text-xs text-ink-2">{j.target === "server" ? "Server" : workers?.find((w) => w.id === j.target)?.name ?? "Worker"}</td>
                         <td className="px-5 py-3 text-xs text-ink-3">
-                          {j.device?.device ? String(j.device.device) : "—"}
+                          {j.device?.backend ? (j.device.backend === "cupy" ? "GPU" : "CPU") : "—"}
                           {j.device?.seconds ? ` · ${String(j.device.seconds)} s` : ""}
                         </td>
                         <td className="px-5 py-3 text-right text-xs text-ink-3">{timeAgo(j.created_at)}</td>

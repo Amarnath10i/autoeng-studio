@@ -7,7 +7,7 @@ import { LimitsTable } from "@/components/project/Panels";
 import { ComputePicker } from "@/components/project/ProjectBar";
 import { Button, Card, ErrorNote, Field, Input, Note, Select, Spinner, Stat, useAsync } from "@/components/ui";
 import { runJob } from "@/lib/api";
-import { fmt, pct } from "@/lib/format";
+import { computeLabel, fmt, pct } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import type { Dist, LimitResult, Scenario, VehicleDesign } from "@/lib/types";
 
@@ -222,7 +222,7 @@ export function ScenarioResultView({ res, pointIndex = 0 }: { res: ScenarioResul
         <LimitsTable limits={p.checks} componentName={(id) => id} />
       </Card>
       <p className="text-xs text-ink-3">
-        {res.samples} Monte Carlo samples · computed on {res.compute.device}. {res.trust.disclaimer}
+        {res.samples} Monte Carlo samples · computed on the {computeLabel(res.compute)}. {res.trust.disclaimer}
       </p>
     </div>
   );

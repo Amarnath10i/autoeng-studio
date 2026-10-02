@@ -2,6 +2,12 @@ import type { Json, Source, Status } from "./types";
 
 export const APP_NAME = "AutoEng Studio";
 
+/** Where a result was computed, without naming hardware: "GPU" or "CPU". */
+export function computeLabel(c?: { backend?: string; gpu?: unknown } | null): string {
+  if (!c) return "CPU";
+  return c.backend === "cupy" || (c.gpu != null && c.gpu !== "" && c.gpu !== false) ? "GPU" : "CPU";
+}
+
 export function fmt(v: number | null | undefined, digits = 1): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return "–";
   const abs = Math.abs(v);

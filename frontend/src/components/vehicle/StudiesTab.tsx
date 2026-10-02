@@ -5,7 +5,7 @@ import { BarList, LineChartBands, type Series } from "@/components/charts/Charts
 import { ComputePicker } from "@/components/project/ProjectBar";
 import { Button, Card, ErrorNote, Field, Input, Note, Segmented, Select, Spinner, StatusBadge, useAsync } from "@/components/ui";
 import { runJob } from "@/lib/api";
-import { fmt, pct, SERIES } from "@/lib/format";
+import { computeLabel, fmt, pct, SERIES } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import type { Dist, Json, LimitResult, Status, VehicleDesign } from "@/lib/types";
 import { type ScenarioResult, ScenarioResultView, strip } from "./ScenarioTab";
@@ -106,7 +106,7 @@ export function WeatherStudy({ design, target, setTarget }: { design: VehicleDes
       {res?.study && (
         <>
           <p className="text-xs text-ink-3">
-            {res.points.length} conditions × {res.samples} samples in {fmt(res.study.seconds, 1)} s on {res.compute.device}.
+            {res.points.length} conditions × {res.samples} samples in {fmt(res.study.seconds, 1)} s on the {computeLabel(res.compute)}.
           </p>
           <div className="grid gap-4 xl:grid-cols-2">
             {chart("Engine peak power", "kW", (p) => p.engine_peak_power_kw.nominal, (p) => p.engine_peak_power_kw)}

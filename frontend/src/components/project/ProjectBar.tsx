@@ -117,13 +117,13 @@ export function ComputePicker({ value, onChange }: { value: string; onChange: (v
       <Cpu className="size-4 text-ink-3" strokeWidth={1.5} aria-hidden />
       <Select value={value} onChange={(e) => onChange(e.target.value)} className="h-10 w-60" aria-label="Compute target">
         <option value="server">
-          Server · {health?.compute.gpu_available ? (health.compute.gpu_device ?? "GPU").replace(/^NVIDIA (GeForce )?/, "") : "CPU"}
+          Server · {health?.compute.gpu_available ? "GPU" : "CPU"}
         </option>
         {workers
           .filter((w) => w.paired)
           .map((w) => (
             <option key={w.id} value={w.id} disabled={!w.online}>
-              {w.name} · {String(w.device?.gpu ?? "CPU")}
+              {w.name} · {w.device?.gpu ? "GPU" : "CPU"}
               {w.online ? "" : " (offline)"}
             </option>
           ))}

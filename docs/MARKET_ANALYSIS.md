@@ -62,7 +62,7 @@ substitution; calibration and community learning; version control; GPU and bring
 
 | Trend | How the platform uses it |
 |---|---|
-| **GPU-batched simulation** | Already built: design sweeps, weather studies and Monte Carlo run as batched array maths (CuPy on NVIDIA GPUs); about 10× faster than CPU on a laptop RTX 3050 |
+| **GPU-batched simulation** | Already built: design sweeps, weather studies and Monte Carlo run as batched array maths (CuPy on NVIDIA GPUs); about 10× faster than CPU on a laptop GPU |
 | **Bring-your-own compute** | Already built: users pair their own PC, Kaggle or Colab GPU; keeps hosting costs low for a start-up |
 | **Physics-AI surrogates** (PhysicsX, NVIDIA PhysicsNeMo) | Train fast surrogates on the platform's own physics runs plus measured data, for real-time exploration and optimisation, while the physics stays the source of truth |
 | **WebGPU in the browser** (ONNX Runtime Web WebGPU execution provider, Chromium 113+; still marked experimental) | Run those surrogates on the user's own GPU inside the browser, with no server cost |

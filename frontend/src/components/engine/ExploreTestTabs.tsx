@@ -7,7 +7,7 @@ import { ComputePicker } from "@/components/project/ProjectBar";
 import type { ProjectState } from "@/components/project/useProject";
 import { Button, Card, Empty, ErrorNote, Field, Input, Note, Select, SourceBadge, Spinner, useAsync } from "@/components/ui";
 import { api, runJob } from "@/lib/api";
-import { fmt, getAt, setAt } from "@/lib/format";
+import { computeLabel, fmt, getAt, setAt } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import type { Json, Param } from "@/lib/types";
 
@@ -136,7 +136,7 @@ export function ExploreTab({ state }: { state: ProjectState }) {
       {res && (
         <>
           <p className="text-xs text-ink-3">
-            {res.evaluations.toLocaleString()} evaluations in {fmt(res.seconds, 1)} s on {res.compute.device}.
+            {res.evaluations.toLocaleString()} evaluations in {fmt(res.seconds, 1)} s on the {computeLabel(res.compute)}.
           </p>
           {one ? (
             <div className="grid gap-4 xl:grid-cols-2">

@@ -97,7 +97,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               {health && (
                 <span className="eyebrow hidden items-center gap-2 lg:inline-flex" title="Compute available to this server">
                   <span className="inline-block size-1.5 rounded-full" style={{ background: "var(--good)" }} aria-hidden />
-                  {health.compute.gpu_available ? health.compute.gpu_device?.replace("NVIDIA GeForce ", "") : "CPU"}
+                  {health.compute.gpu_available ? "GPU ready" : "CPU"}
                 </span>
               )}
               <ThemeToggle />
