@@ -149,7 +149,7 @@ export function VehicleWorkspace({ state }: { state: ProjectState }) {
         </div>
       )}
       {tab === "body" && <BodyDesigner design={design} onChange={(d) => state.edit(d)} />}
-      {tab === "aero" && <WindTunnel design={design} onChange={(d) => state.edit(d)} target={target} setTarget={setTarget} />}
+      {tab === "aero" && <WindTunnel design={design} target={target} setTarget={setTarget} />}
       {tab === "performance" &&
         (result ? <PerformanceTab result={result} design={design} /> : sim.busy ? <Spinner label="Simulating…" /> : <Empty title="Press Simulate" />)}
       {tab === "scenarios" && <ScenarioTab design={design} target={target} setTarget={setTarget} />}

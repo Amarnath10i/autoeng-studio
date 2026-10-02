@@ -61,6 +61,8 @@ market context, risks and priorities are in [docs/MARKET_ANALYSIS.md](docs/MARKE
   candidates that you review before anything enters the library.
 - Bring-your-own compute: pair your own GPU (PC, Kaggle, Colab, cloud VM) with a one-time code; workers connect
   outbound and run jobs with NumPy on CPU or CuPy on NVIDIA GPUs.
+- Accuracy page: verification against exact answers, validation against experiments (sphere drag, the Ahmed body)
+  and field evidence from real engines, published with failures included and re-runnable on your own GPU.
 - Accounts, projects, materials library, light and dark themes, a table view for every chart.
 
 ## Architecture
@@ -156,7 +158,8 @@ thermal duty cycles), material substitution (stage 3), and the validation loop (
 community learning).
 
 Next, in priority order (see the market analysis for the reasoning):
-1. Validation programme: real dyno and track datasets, published accuracy per model.
+1. Validation programme: more real dyno and coast-down datasets on the Accuracy page; a wall-modelled, higher-Reynolds
+   aero mode so car-body drag passes the Ahmed benchmark.
 2. Knock and spark timing; compressor-map import (surge, choke, shaft speed); transient spool.
 3. Electric powertrain: battery, inverter and motor models on the existing graph.
 4. OBD-II/CAN log import and ECU-log based calibration.

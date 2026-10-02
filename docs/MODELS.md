@@ -166,3 +166,22 @@ when at least two directions agree, which tolerates small holes in imported mesh
 Honest scope: the lattice Reynolds number is 10³–10⁴, far below a real car (10⁶–10⁷), so boundary layers are thick and
 separation can differ. Absolute Cd is indicative; use the tunnel to compare shapes at one resolution and to see where the
 flow stagnates, separates and forms the wake.
+
+## Verification and validation (`autoeng.validation`)
+
+The Accuracy page publishes three layers of evidence; `uv run python -m autoeng.validation --write` regenerates the
+shipped report (`backend/src/autoeng/validation/published.json`), and any user can re-run it on their own GPU.
+
+| Layer | Case | Reference | Result |
+|---|---|---|---|
+| Verification | Energy balance, P = T·ω, turbo shaft balance | Conservation laws | Exact (round-off) |
+| Verification | I4, I6, cross- and flat-plane V8 shaking forces | Closed-form results | Exact |
+| Verification | Euler and Johnson column stresses | Classic formulas | Exact |
+| Validation | Sphere drag, Re 100 and 300 | Clift & Gauvin (1971) standard drag curve | +5.4 %, +3.1 %; lift 0 by symmetry |
+| Validation | Ahmed body, 0° / 25° / 35° slant | Ahmed, Ramm & Faltin (1984), SAE 840300 | +217 % to +274 %; slant trend not reproduced |
+| Field | Uncalibrated torque error on users' shared dyno runs | Their measurements | Grows with every shared calibration |
+
+Reading the results: the solver is sound at the Reynolds numbers it resolves (sphere), but car bodies at
+Re ≈ 10⁶ need turbulent, wall-resolved flow that a laptop-sized lattice cannot provide, so tunnel Cd is indicative
+and the app does not write it into the vehicle model. Drag for performance predictions should come from a wind
+tunnel or coast-down test, entered as a measured value.

@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { Cpu, FlaskConical, FolderKanban, LogOut, Moon, Sun } from "lucide-react";
+import { Cpu, FlaskConical, FolderKanban, LogOut, Moon, ShieldCheck, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useSyncExternalStore } from "react";
@@ -14,6 +14,7 @@ const NAV = [
   { href: "/", label: "Projects", icon: FolderKanban },
   { href: "/materials", label: "Materials", icon: FlaskConical },
   { href: "/workers", label: "Compute", icon: Cpu },
+  { href: "/validation", label: "Accuracy", icon: ShieldCheck },
 ];
 
 const THEME_EVENT = "autoeng-theme";

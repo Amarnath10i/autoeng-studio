@@ -2,6 +2,7 @@
 
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Wind } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { LineChartBands } from "@/components/charts/Charts";
@@ -12,7 +13,7 @@ import { Button, Card, ErrorNote, Note, Segmented, Spinner, useAsync } from "@/c
 import { api, waitForJob } from "@/lib/api";
 import { fmt } from "@/lib/format";
 import { useSession } from "@/lib/session";
-import type { Json, Param, VehicleDesign } from "@/lib/types";
+import type { Json, VehicleDesign } from "@/lib/types";
 import { type BodyGeometry, Orbit } from "./BodyDesigner";
 import { BodySurface, type Surface, useBodySurface } from "./BodyMesh3D";
 
@@ -317,12 +318,10 @@ function SliceView({
 
 export function WindTunnel({
   design,
-  onChange,
   target,
   setTarget,
 }: {
   design: VehicleDesign;
-  onChange: (d: VehicleDesign) => void;
   target: string;
   setTarget: (t: string) => void;
 }) {
@@ -364,24 +363,8 @@ export function WindTunnel({
       ].slice(0, 8));
     });
 
-  const applyCd = () => {
-    if (!res || !bodyId || !body?.params) return;
-    const p = body.params as Record<string, Param | unknown>;
-    const cd = p.drag_coefficient as Param | undefined;
-    const params = {
-      ...p,
-      drag_coefficient: {
-        ...(cd ?? {}),
-        value: +res.cd.toFixed(3),
-        tol: +(res.cd * 0.2).toFixed(3),
-        source: "simulated",
-        ref: `Wind tunnel (${res.grid.resolution}, Re ${res.grid.reynolds}); low-Reynolds estimate, ±20 %`,
-      },
-    };
-    onChange({ ...design, components: { ...design.components, [bodyId]: { ...body, params } } });
-  };
-
   const resolutions = meta?.wind_tunnel?.resolutions ?? [];
+  const first = runs.length ? runs[runs.length - 1].cd * runs[runs.length - 1].area : 1;
   const cda = res ? res.cd * res.frontal_area_m2 : 0;
   // Skip the start-up transient (impulsive start) so the chart scale shows the settling.
   const settled = res ? res.history.filter((h) => h.step >= res.grid.steps * 0.1) : [];
@@ -514,14 +497,7 @@ export function WindTunnel({
           <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
             <Card
               title="Runs this session"
-              subtitle="Change the sketch in Body design and run again to compare shapes at the same resolution."
-              actions={
-                bodyId && body?.params ? (
-                  <Button onClick={applyCd} size="sm">
-                    Use Cd {fmt(res.cd, 3)} in vehicle model
-                  </Button>
-                ) : undefined
-              }
+              subtitle="Change the sketch in Body design and run again. Compare shapes at the same resolution: the change between runs is more meaningful than either absolute value."
             >
               <table className="w-full text-sm tabular">
                 <thead className="text-left text-xs text-ink-2">
@@ -531,6 +507,7 @@ export function WindTunnel({
                     <th className="py-1.5 text-right font-medium">Cd</th>
                     <th className="py-1.5 text-right font-medium">Cl</th>
                     <th className="py-1.5 text-right font-medium">CdA m²</th>
+                    <th className="py-1.5 text-right font-medium">vs first run</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -541,6 +518,11 @@ export function WindTunnel({
                       <td className="py-1.5 text-right">{fmt(r.cd, 3)}</td>
                       <td className="py-1.5 text-right">{fmt(r.cl, 3)}</td>
                       <td className="py-1.5 text-right">{fmt(r.cd * r.area, 3)}</td>
+                      <td className="py-1.5 text-right">
+                        {r === runs[runs.length - 1] || r.resolution !== runs[runs.length - 1].resolution
+                          ? "—"
+                          : `${r.cd * r.area >= first ? "+" : "−"}${fmt(Math.abs(100 * (r.cd * r.area / first - 1)), 1)} %`}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -549,6 +531,14 @@ export function WindTunnel({
             <Note tone="warning">
               <div className="space-y-1.5">
                 <p className="font-medium text-ink">How far to trust these numbers</p>
+                <p>
+                  Benchmarked on the{" "}
+                  <Link href="/validation" className="text-ink underline underline-offset-2">
+                    Accuracy page
+                  </Link>
+                  : sphere drag within about 5 % at the tunnel&apos;s own Reynolds number, but car-body drag 2-3× too high
+                  against wind-tunnel data. Enter drag from a real test as a measured value in the vehicle model.
+                </p>
                 {res.assumptions.map((a) => (
                   <p key={a}>{a}</p>
                 ))}
